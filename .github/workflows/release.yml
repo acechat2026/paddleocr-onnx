@@ -169,20 +169,15 @@ jobs:
       - if: steps.cache-opencv.outputs.cache-hit != 'true'
         run: |
           INSTALL_PREFIX="$GITHUB_WORKSPACE/3rdparty/opencv/build/install"
-          CMAKE_DIR="$INSTALL_PREFIX/lib/cmake/opencv4"
-          rm -f "$CMAKE_DIR/OpenCVModules.cmake" "$CMAKE_DIR/OpenCVModules-release.cmake"
-          cat > "$CMAKE_DIR/OpenCVConfig.cmake" << 'CMAKEDOC'
-          set(OpenCV_FOUND TRUE)
-          set(OpenCV_VERSION "4.10.0")
-          get_filename_component(OpenCV_INSTALL_PREFIX "${CMAKE_CURRENT_LIST_DIR}/../../../" ABSOLUTE)
-          set(OpenCV_INCLUDE_DIRS "${OpenCV_INSTALL_PREFIX}/include/opencv4")
-          set(OpenCV_LIBS
-              "${OpenCV_INSTALL_PREFIX}/lib/libopencv_imgcodecs.a"
-              "${OpenCV_INSTALL_PREFIX}/lib/libopencv_imgproc.a"
-              "${OpenCV_INSTALL_PREFIX}/lib/libopencv_core.a"
-              "-lz"
-          )
-          CMAKEDOC
+          mkdir -p "$INSTALL_PREFIX/lib/opencv4/3rdparty"
+          # Create dummy static archives for missing 3rdparty dependencies
+          # that CMake validates during find_package even when unused.
+          for lib in libade.a libprotobuf.a; do
+            path="$INSTALL_PREFIX/lib/opencv4/3rdparty/$lib"
+            if [ ! -f "$path" ]; then
+              ar rcs "$path"
+            fi
+          done
       - run: |
           mkdir -p 3rdparty/cpp-httplib
           wget -q "https://raw.githubusercontent.com/jarro2783/cxxopts/v3.1.1/include/cxxopts.hpp" -O 3rdparty/cxxopts.hpp
@@ -281,20 +276,15 @@ jobs:
       - if: steps.cache-opencv.outputs.cache-hit != 'true'
         run: |
           INSTALL_PREFIX="$GITHUB_WORKSPACE/3rdparty/opencv/build/install"
-          CMAKE_DIR="$INSTALL_PREFIX/lib/cmake/opencv4"
-          rm -f "$CMAKE_DIR/OpenCVModules.cmake" "$CMAKE_DIR/OpenCVModules-release.cmake"
-          cat > "$CMAKE_DIR/OpenCVConfig.cmake" << 'CMAKEDOC'
-          set(OpenCV_FOUND TRUE)
-          set(OpenCV_VERSION "4.10.0")
-          get_filename_component(OpenCV_INSTALL_PREFIX "${CMAKE_CURRENT_LIST_DIR}/../../../" ABSOLUTE)
-          set(OpenCV_INCLUDE_DIRS "${OpenCV_INSTALL_PREFIX}/include/opencv4")
-          set(OpenCV_LIBS
-              "${OpenCV_INSTALL_PREFIX}/lib/libopencv_imgcodecs.a"
-              "${OpenCV_INSTALL_PREFIX}/lib/libopencv_imgproc.a"
-              "${OpenCV_INSTALL_PREFIX}/lib/libopencv_core.a"
-              "-lz"
-          )
-          CMAKEDOC
+          mkdir -p "$INSTALL_PREFIX/lib/opencv4/3rdparty"
+          # Create dummy static archives for missing 3rdparty dependencies
+          # that CMake validates during find_package even when unused.
+          for lib in libade.a libprotobuf.a; do
+            path="$INSTALL_PREFIX/lib/opencv4/3rdparty/$lib"
+            if [ ! -f "$path" ]; then
+              ar rcs "$path"
+            fi
+          done
       - run: |
           mkdir -p 3rdparty/cpp-httplib
           wget -q "https://raw.githubusercontent.com/jarro2783/cxxopts/v3.1.1/include/cxxopts.hpp" -O 3rdparty/cxxopts.hpp
@@ -394,20 +384,15 @@ jobs:
       - if: steps.cache-opencv.outputs.cache-hit != 'true'
         run: |
           INSTALL_PREFIX="$GITHUB_WORKSPACE/3rdparty/opencv/build/install"
-          CMAKE_DIR="$INSTALL_PREFIX/lib/cmake/opencv4"
-          rm -f "$CMAKE_DIR/OpenCVModules.cmake" "$CMAKE_DIR/OpenCVModules-release.cmake"
-          cat > "$CMAKE_DIR/OpenCVConfig.cmake" << 'CMAKEDOC'
-          set(OpenCV_FOUND TRUE)
-          set(OpenCV_VERSION "4.10.0")
-          get_filename_component(OpenCV_INSTALL_PREFIX "${CMAKE_CURRENT_LIST_DIR}/../../../" ABSOLUTE)
-          set(OpenCV_INCLUDE_DIRS "${OpenCV_INSTALL_PREFIX}/include/opencv4")
-          set(OpenCV_LIBS
-              "${OpenCV_INSTALL_PREFIX}/lib/libopencv_imgcodecs.a"
-              "${OpenCV_INSTALL_PREFIX}/lib/libopencv_imgproc.a"
-              "${OpenCV_INSTALL_PREFIX}/lib/libopencv_core.a"
-              "-lz"
-          )
-          CMAKEDOC
+          mkdir -p "$INSTALL_PREFIX/lib/opencv4/3rdparty"
+          # Create dummy static archives for missing 3rdparty dependencies
+          # that CMake validates during find_package even when unused.
+          for lib in libade.a libprotobuf.a; do
+            path="$INSTALL_PREFIX/lib/opencv4/3rdparty/$lib"
+            if [ ! -f "$path" ]; then
+              ar rcs "$path"
+            fi
+          done
       - run: |
           mkdir -p 3rdparty/cpp-httplib
           wget -q "https://raw.githubusercontent.com/jarro2783/cxxopts/v3.1.1/include/cxxopts.hpp" -O 3rdparty/cxxopts.hpp
