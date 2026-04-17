@@ -63,7 +63,8 @@ DerivedData/
 3rdparty/cpp-httplib/*
 !3rdparty/cpp-httplib/httplib.h
 
-
+models/dicts/
+!models/dicts/.gitkeep
 
 models/paddle/
 !models/paddle/.gitkeep

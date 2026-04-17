@@ -317,10 +317,10 @@ std::vector<float> OCRRecognizer::PreprocessBatch(const std::vector<cv::Mat>& im
             }
         }
         
-        // Copy to blob (CHW format, BGR -> RGB)
+        // Copy to blob (CHW format, BGR)
         int base_offset = b * channels * height * width;
         for (int c = 0; c < channels; ++c) {
-            int channel_idx = 2 - c;  // BGR to RGB
+            int channel_idx = c;
             for (int h = 0; h < height; ++h) {
                 for (int w = 0; w < new_width; ++w) {
                     int idx = base_offset + c * height * width + h * width + w;

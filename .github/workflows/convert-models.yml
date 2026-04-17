@@ -67,16 +67,16 @@ jobs:
       rec_model_name: ${{ steps.vars.outputs.rec_model_name }}
       det_onnx_file: ${{ steps.vars.outputs.det_onnx_file }}
       rec_onnx_file: ${{ steps.vars.outputs.rec_onnx_file }}
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      
+
       - name: Set model variables
         id: vars
         run: |
           MODEL_VERSION="${{ inputs.model_version || 'v5_server' }}"
-          
+
           case "${MODEL_VERSION}" in
             v5_server)
               DET_MODEL="PP-OCRv5_server_det"
@@ -99,22 +99,22 @@ jobs:
               exit 1
               ;;
           esac
-          
+
           echo "det_model_name=${DET_MODEL}" >> $GITHUB_OUTPUT
           echo "rec_model_name=${REC_MODEL}" >> $GITHUB_OUTPUT
           echo "det_onnx_file=${DET_MODEL}.onnx" >> $GITHUB_OUTPUT
           echo "rec_onnx_file=${REC_MODEL}.onnx" >> $GITHUB_OUTPUT
           echo "model_version=${MODEL_VERSION}" >> $GITHUB_OUTPUT
-          
+
           echo "Model version: ${MODEL_VERSION}"
           echo "Detection model: ${DET_MODEL}"
           echo "Recognition model: ${REC_MODEL}"
-      
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
-      
+
       - name: Cache Python packages
         uses: actions/cache@v4
         with:
@@ -122,7 +122,7 @@ jobs:
           key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
           restore-keys: |
             ${{ runner.os }}-pip-
-      
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
@@ -140,7 +140,7 @@ jobs:
           mkdir -p models/paddle
           mkdir -p models/onnx
           mkdir -p models/dicts
-      
+
       - name: Download detection model
         id: download_det
         run: |
@@ -213,7 +213,7 @@ jobs:
             --save_file "${ONNX_FILE}" \
             --opset_version ${OPSET_VERSION} \
             --enable_onnx_checker True
-          
+
           if [ -f "${ONNX_FILE}" ]; then
             FILE_SIZE=$(du -h "${ONNX_FILE}" | cut -f1)
             echo "ONNX model created: ${ONNX_FILE} (${FILE_SIZE})"
@@ -222,7 +222,7 @@ jobs:
             echo "Error: ONNX conversion failed"
             exit 1
           fi
-      
+
       - name: Verify ONNX model
         run: |
           python -c "
@@ -232,7 +232,7 @@ jobs:
           print(f'ONNX model verified: {len(model.graph.input)} inputs, {len(model.graph.output)} outputs')
           print(f'Opset version: {model.opset_import[0].version}')
           "
-      
+
       - name: Upload detection model artifact
         if: ${{ inputs.upload_artifact != 'false' }}
         uses: actions/upload-artifact@v4
@@ -243,6 +243,7 @@ jobs:
             models/paddle/${{ steps.vars.outputs.det_model_name }}/inference.json
             models/paddle/${{ steps.vars.outputs.det_model_name }}/inference.pdiparams
             models/paddle/${{ steps.vars.outputs.det_model_name }}/inference.pdmodel
+            models/paddle/${{ steps.vars.outputs.det_model_name }}/inference.yml
           retention-days: 90
           compression-level: 6
           if-no-files-found: warn
@@ -254,22 +255,22 @@ jobs:
     outputs:
       rec_model_name: ${{ steps.vars.outputs.rec_model_name }}
       rec_onnx_file: ${{ steps.convert_rec.outputs.onnx_file }}
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      
+
       - name: Set model variables
         id: vars
         run: |
           echo "rec_model_name=${{ needs.convert-detection.outputs.rec_model_name }}" >> $GITHUB_OUTPUT
           echo "rec_onnx_file=${{ needs.convert-detection.outputs.rec_model_name }}.onnx" >> $GITHUB_OUTPUT
-      
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
-      
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
@@ -285,7 +286,7 @@ jobs:
         run: |
           mkdir -p models/paddle
           mkdir -p models/onnx
-      
+
       - name: Download recognition model
         run: |
           set -e
@@ -334,7 +335,7 @@ jobs:
             find . -maxdepth 3 -type f
             exit 1
           fi
-      
+
       - name: Convert recognition model to ONNX
         id: convert_rec
         run: |
@@ -357,7 +358,7 @@ jobs:
             --save_file "${ONNX_FILE}" \
             --opset_version ${OPSET_VERSION} \
             --enable_onnx_checker True
-          
+
           if [ -f "${ONNX_FILE}" ]; then
             FILE_SIZE=$(du -h "${ONNX_FILE}" | cut -f1)
             echo "ONNX model created: ${ONNX_FILE} (${FILE_SIZE})"
@@ -366,7 +367,47 @@ jobs:
             echo "Error: ONNX conversion failed"
             exit 1
           fi
-      
+
+      - name: Extract character dictionary from inference.yml
+        run: |
+          MODEL_NAME="${{ steps.vars.outputs.rec_model_name }}"
+          mkdir -p models/dicts
+          cat << 'PYEOF' > extract_dict.py
+          import sys
+          yml_path = f"models/paddle/{sys.argv[1]}/inference.yml"
+          out_path = "models/dicts/ppocr_keys_v5.txt"
+          with open(yml_path, "r", encoding="utf-8") as f:
+              lines = f.readlines()
+          in_dict = False
+          indent = None
+          chars = []
+          for line in lines:
+              stripped = line.lstrip(" ")
+              if stripped.startswith("character_dict:"):
+                  in_dict = True
+                  indent = None
+                  continue
+              if in_dict:
+                  if line.strip() == "":
+                      continue
+                  current_indent = len(line) - len(line.lstrip(" "))
+                  if indent is None and stripped.startswith("- "):
+                      indent = current_indent
+                  if current_indent == indent and stripped.startswith("- "):
+                      char = stripped[2:].strip().strip("'\"")
+                      chars.append(char)
+                  elif current_indent < indent and line.strip():
+                      break
+          # Skip CTC blank token if present at the start (our C++ code inserts it)
+          if chars and chars[0] == "":
+              chars = chars[1:]
+          with open(out_path, "w", encoding="utf-8") as f:
+              for c in chars:
+                  f.write(c + "\n")
+          print(f"Extracted {len(chars)} characters to {out_path}")
+          PYEOF
+          python3 extract_dict.py "$MODEL_NAME"
+
       - name: Verify ONNX model
         run: |
           python -c "
@@ -375,7 +416,7 @@ jobs:
           onnx.checker.check_model(model)
           print(f'ONNX model verified: {len(model.graph.input)} inputs, {len(model.graph.output)} outputs')
           "
-      
+
       - name: Upload recognition model artifact
         if: ${{ inputs.upload_artifact != 'false' }}
         uses: actions/upload-artifact@v4
@@ -386,6 +427,8 @@ jobs:
             models/paddle/${{ steps.vars.outputs.rec_model_name }}/inference.json
             models/paddle/${{ steps.vars.outputs.rec_model_name }}/inference.pdiparams
             models/paddle/${{ steps.vars.outputs.rec_model_name }}/inference.pdmodel
+            models/paddle/${{ steps.vars.outputs.rec_model_name }}/inference.yml
+            models/dicts/ppocr_keys_v5.txt
           retention-days: 90
           compression-level: 6
           if-no-files-found: warn
@@ -393,31 +436,31 @@ jobs:
   download-dictionaries:
     name: Download Dictionaries
     runs-on: ubuntu-22.04
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      
+
       - name: Create dictionaries directory
         run: mkdir -p models/dicts
-      
+
       - name: Download Chinese dictionary
         run: |
           wget -q https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/release/2.7/ppocr/utils/ppocr_keys_v1.txt \
             -O models/dicts/ppocr_keys_v1.txt
           echo "Chinese dictionary: $(wc -l < models/dicts/ppocr_keys_v1.txt) characters"
-      
+
       - name: Download English dictionary
         run: |
           wget -q https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/release/2.7/ppocr/utils/ic15_dict.txt \
             -O models/dicts/ic15_dict.txt
           echo "English dictionary: $(wc -l < models/dicts/ic15_dict.txt) characters"
-      
+
       - name: Download multilingual dictionary (V5)
         run: |
           wget -q https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/release/3.0/ppocr/utils/ppocr_keys_v1.txt \
             -O models/dicts/ppocr_keys_v5.txt || true
-      
+
       - name: Upload dictionaries artifact
         uses: actions/upload-artifact@v4
         with:
@@ -430,13 +473,13 @@ jobs:
     name: Conversion Summary
     runs-on: ubuntu-22.04
     needs: [convert-detection, convert-recognition, download-dictionaries]
-    
+
     steps:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts
-      
+
       - name: Generate summary
         run: |
           echo "## Model Conversion Summary" >> $GITHUB_STEP_SUMMARY
@@ -445,21 +488,21 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Converted Models" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          
+
           echo "| Model | Format | Artifact |" >> $GITHUB_STEP_SUMMARY
           echo "|-------|--------|----------|" >> $GITHUB_STEP_SUMMARY
           echo "| ${{ needs.convert-detection.outputs.det_model_name }} | ONNX | \`${{ needs.convert-detection.outputs.det_model_name }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| ${{ needs.convert-recognition.outputs.rec_model_name }} | ONNX | \`${{ needs.convert-recognition.outputs.rec_model_name }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Dictionaries | TXT | \`dictionaries\` |" >> $GITHUB_STEP_SUMMARY
-          
+
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Artifacts are available for download in this workflow run." >> $GITHUB_STEP_SUMMARY
-      
+
       - name: List artifact contents
         run: |
           echo "=== Artifacts Directory Structure ==="
           find artifacts -type f -name "*.onnx" -o -name "*.txt" | sort
-          
+
           echo ""
           echo "=== File Sizes ==="
           find artifacts -type f -name "*.onnx" -exec du -h {} \;

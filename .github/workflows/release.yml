@@ -166,6 +166,15 @@ jobs:
             -DBUILD_opencv_videoio=OFF
           cmake --build build --parallel $(nproc)
           cmake --install build
+      - if: steps.cache-opencv.outputs.cache-hit != 'true'
+        run: |
+          for f in "$GITHUB_WORKSPACE/3rdparty/opencv/build/install/lib/cmake/opencv4/OpenCVModules.cmake" \
+                   "$GITHUB_WORKSPACE/3rdparty/opencv/build/install/lib/cmake/opencv4/OpenCVModules-release.cmake"; do
+            if [ -f "$f" ]; then
+              sed -i.bak -e '/ade/d' -e '/libprotobuf/d' -e '/protobuf/d' "$f"
+              rm -f "$f.bak"
+            fi
+          done
       - run: |
           mkdir -p 3rdparty/cpp-httplib
           wget -q "https://raw.githubusercontent.com/jarro2783/cxxopts/v3.1.1/include/cxxopts.hpp" -O 3rdparty/cxxopts.hpp
@@ -399,7 +408,7 @@ jobs:
           Get-ChildItem -Path bin | ForEach-Object { Write-Host $_.Name }
           $det = Get-ChildItem -Recurse -Path models -Filter "*_det.onnx" | Select-Object -First 1
           $rec = Get-ChildItem -Recurse -Path models -Filter "*_rec.onnx" | Select-Object -First 1
-          $dict = Get-ChildItem -Recurse -Path models -Filter "ppocr_keys_v1.txt" | Select-Object -First 1
+          $dict = Get-ChildItem -Recurse -Path models -Filter "ppocr_keys_v5.txt" | Select-Object -First 1
           .\bin\ocr_cli.exe -i tests\DP_CONSOLE.png `
             -d "$($det.FullName)" `
             -r "$($rec.FullName)" `
@@ -437,7 +446,7 @@ jobs:
           ls -la bin/*.so* 2>/dev/null || true
           DET_MODEL=$(find models -name "*_det.onnx" | head -n1)
           REC_MODEL=$(find models -name "*_rec.onnx" | head -n1)
-          DICT=$(find models -name "ppocr_keys_v1.txt" | head -n1)
+          DICT=$(find models -name "ppocr_keys_v5.txt" | head -n1)
           LD_LIBRARY_PATH=bin ./bin/ocr_cli -i tests/DP_CONSOLE.png \
             -d "$DET_MODEL" \
             -r "$REC_MODEL" \
@@ -475,7 +484,7 @@ jobs:
           chmod +x bin/ocr_cli
           DET_MODEL=$(find models -name "*_det.onnx" | head -n1)
           REC_MODEL=$(find models -name "*_rec.onnx" | head -n1)
-          DICT=$(find models -name "ppocr_keys_v1.txt" | head -n1)
+          DICT=$(find models -name "ppocr_keys_v5.txt" | head -n1)
           DYLD_LIBRARY_PATH=bin ./bin/ocr_cli -i tests/DP_CONSOLE.png \
             -d "$DET_MODEL" \
             -r "$REC_MODEL" \
@@ -514,7 +523,7 @@ jobs:
           chmod +x bin/ocr_cli
           DET_MODEL=$(find models -name "*_det.onnx" | head -n1)
           REC_MODEL=$(find models -name "*_rec.onnx" | head -n1)
-          DICT=$(find models -name "ppocr_keys_v1.txt" | head -n1)
+          DICT=$(find models -name "ppocr_keys_v5.txt" | head -n1)
           DYLD_LIBRARY_PATH=bin ./bin/ocr_cli -i tests/DP_CONSOLE.png \
             -d "$DET_MODEL" \
             -r "$REC_MODEL" \
@@ -646,7 +655,7 @@ jobs:
 
           ### Command Line
           ```bash
-          ./ocr_cli input.jpg -d models/PP-OCRv5_server_det.onnx -r models/PP-OCRv5_server_rec.onnx --dict models/ppocr_keys_v1.txt
+          ./ocr_cli input.jpg -d models/PP-OCRv5_server_det.onnx -r models/PP-OCRv5_server_rec.onnx --dict models/ppocr_keys_v5.txt
           ```
           EOF
 
