@@ -138,15 +138,13 @@ int main(int argc, char* argv[]) {
     std::cout << "Image size: " << image.cols << "x" << image.rows << std::endl;
     
     // Configure OCR pipeline
-    OCRConfig config;
-    config.det_model_path = opts.det_model_path;
-    config.rec_model_path = opts.rec_model_path;
-    config.dict_path = opts.dict_path;
+    OCRConfig config = OCRConfig::FromPaths(
+        opts.det_model_path, opts.rec_model_path, opts.dict_path);
     config.use_gpu = opts.use_gpu;
     config.gpu_id = opts.gpu_id;
     config.num_threads = opts.num_threads;
     config.verbose = opts.verbose;
-    
+
     config.detector.db_thresh = opts.det_db_thresh;
     config.detector.db_box_thresh = opts.det_db_box_thresh;
     config.detector.db_unclip_ratio = opts.det_db_unclip_ratio;

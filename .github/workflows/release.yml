@@ -121,7 +121,7 @@ jobs:
         id: cache-opencv
         with:
           path: 3rdparty/opencv/build/install
-          key: ${{ runner.os }}-opencv-static-${{ env.OPENCV_VERSION }}
+          key: ${{ runner.os }}-opencv-static-v2-${{ env.OPENCV_VERSION }}
       - if: steps.cache-opencv.outputs.cache-hit != 'true'
         run: |
           mkdir -p 3rdparty && cd 3rdparty
@@ -141,6 +141,7 @@ jobs:
             -DWITH_OPENEXR=OFF \
             -DWITH_GDAL=OFF \
             -DWITH_GDCM=OFF \
+            -DWITH_PROTOBUF=OFF \
             -DWITH_FFMPEG=OFF \
             -DWITH_WIN32UI=OFF \
             -DWITH_QT=OFF \
@@ -214,7 +215,7 @@ jobs:
         id: cache-opencv
         with:
           path: 3rdparty/opencv/build/install
-          key: ${{ runner.os }}-${{ runner.arch }}-opencv-static-${{ env.OPENCV_VERSION }}
+          key: ${{ runner.os }}-${{ runner.arch }}-opencv-static-v2-${{ env.OPENCV_VERSION }}
       - if: steps.cache-opencv.outputs.cache-hit != 'true'
         run: |
           mkdir -p 3rdparty && cd 3rdparty
@@ -234,6 +235,7 @@ jobs:
             -DWITH_OPENEXR=OFF \
             -DWITH_GDAL=OFF \
             -DWITH_GDCM=OFF \
+            -DWITH_PROTOBUF=OFF \
             -DWITH_FFMPEG=OFF \
             -DWITH_WIN32UI=OFF \
             -DWITH_QT=OFF \
@@ -308,7 +310,7 @@ jobs:
         id: cache-opencv
         with:
           path: 3rdparty/opencv/build/install
-          key: ${{ runner.os }}-${{ runner.arch }}-opencv-static-${{ env.OPENCV_VERSION }}
+          key: ${{ runner.os }}-${{ runner.arch }}-opencv-static-v2-${{ env.OPENCV_VERSION }}
       - if: steps.cache-opencv.outputs.cache-hit != 'true'
         run: |
           mkdir -p 3rdparty && cd 3rdparty
@@ -328,6 +330,7 @@ jobs:
             -DWITH_OPENEXR=OFF \
             -DWITH_GDAL=OFF \
             -DWITH_GDCM=OFF \
+            -DWITH_PROTOBUF=OFF \
             -DWITH_FFMPEG=OFF \
             -DWITH_WIN32UI=OFF \
             -DWITH_QT=OFF \
