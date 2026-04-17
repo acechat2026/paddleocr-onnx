@@ -34,50 +34,232 @@ jobs:
       model_version: ${{ inputs.model_version || 'v5_server' }}
       upload_artifact: true
   
-  build-binaries:
-    name: Build Binaries
+  build-windows:
+    name: Build Windows
+    runs-on: windows-2022
     needs: convert-models
-    uses: ./.github/workflows/build.yml
-  
+    env:
+      ONNXRUNTIME_VERSION: '1.20.1'
+      OPENCV_VERSION: '4.10.0'
+      CMAKE_BUILD_TYPE: Release
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: lukka/get-cmake@latest
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - uses: actions/cache@v4
+        id: cache-deps
+        with:
+          path: |
+            3rdparty/onnxruntime
+            3rdparty/opencv
+          key: ${{ runner.os }}-deps-${{ env.ONNXRUNTIME_VERSION }}-${{ env.OPENCV_VERSION }}
+      - if: steps.cache-deps.outputs.cache-hit != 'true'
+        run: |
+          New-Item -ItemType Directory -Force -Path 3rdparty | Out-Null
+          $url = "https://github.com/microsoft/onnxruntime/releases/download/v$env:ONNXRUNTIME_VERSION/onnxruntime-win-x64-$env:ONNXRUNTIME_VERSION.zip"
+          Invoke-WebRequest -Uri $url -OutFile 3rdparty\onnxruntime.zip
+          Expand-Archive -Path 3rdparty\onnxruntime.zip -DestinationPath 3rdparty -Force
+          Rename-Item -Path "3rdparty\onnxruntime-win-x64-$env:ONNXRUNTIME_VERSION" -NewName "onnxruntime"
+          Remove-Item 3rdparty\onnxruntime.zip
+      - if: steps.cache-deps.outputs.cache-hit != 'true'
+        run: |
+          $url = "https://github.com/opencv/opencv/releases/download/$env:OPENCV_VERSION/opencv-$env:OPENCV_VERSION-windows.exe"
+          Invoke-WebRequest -Uri $url -OutFile 3rdparty\opencv.exe
+          Start-Process -FilePath "3rdparty\opencv.exe" -ArgumentList "-o3rdparty -y" -Wait -NoNewWindow
+          Remove-Item 3rdparty\opencv.exe
+      - run: |
+          Invoke-WebRequest -Uri "https://raw.githubusercontent.com/jarro2783/cxxopts/v3.1.1/include/cxxopts.hpp" -OutFile "3rdparty\cxxopts.hpp"
+          New-Item -ItemType Directory -Force -Path "3rdparty\cpp-httplib" | Out-Null
+          Invoke-WebRequest -Uri "https://raw.githubusercontent.com/yhirose/cpp-httplib/v0.14.3/httplib.h" -OutFile "3rdparty\cpp-httplib\httplib.h"
+      - run: |
+          cmake -B build -G "Visual Studio 17 2022" -A x64 `
+            -DCMAKE_BUILD_TYPE=$env:CMAKE_BUILD_TYPE `
+            -DBUILD_HTTP_SERVER=ON `
+            -DOpenCV_DIR="$env:GITHUB_WORKSPACE\3rdparty\opencv\build\x64\vc16\lib"
+      - run: cmake --build build --config $env:CMAKE_BUILD_TYPE --parallel
+      - run: |
+          $outDir = "build\bin\$env:CMAKE_BUILD_TYPE"
+          Copy-Item -Path "3rdparty\opencv\build\x64\vc16\bin\opencv_world*.dll" -Destination "$outDir\" -ErrorAction SilentlyContinue
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paddleocr-onnx-windows
+          path: |
+            build/bin/${{ env.CMAKE_BUILD_TYPE }}/*.exe
+            build/bin/${{ env.CMAKE_BUILD_TYPE }}/*.dll
+          retention-days: 7
+
+  build-linux:
+    name: Build Linux
+    runs-on: ubuntu-22.04
+    needs: convert-models
+    env:
+      ONNXRUNTIME_VERSION: '1.20.1'
+      CMAKE_BUILD_TYPE: Release
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - run: sudo apt update && sudo apt install -y build-essential cmake libopencv-dev wget
+      - uses: actions/cache@v4
+        id: cache-onnx
+        with:
+          path: 3rdparty/onnxruntime
+          key: ${{ runner.os }}-onnx-${{ env.ONNXRUNTIME_VERSION }}
+      - if: steps.cache-onnx.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p 3rdparty && cd 3rdparty
+          wget -q "https://github.com/microsoft/onnxruntime/releases/download/v${ONNXRUNTIME_VERSION}/onnxruntime-linux-x64-${ONNXRUNTIME_VERSION}.tgz"
+          tar -xzf "onnxruntime-linux-x64-${ONNXRUNTIME_VERSION}.tgz"
+          mv "onnxruntime-linux-x64-${ONNXRUNTIME_VERSION}" onnxruntime
+          rm "onnxruntime-linux-x64-${ONNXRUNTIME_VERSION}.tgz"
+      - run: |
+          mkdir -p 3rdparty/cpp-httplib
+          wget -q "https://raw.githubusercontent.com/jarro2783/cxxopts/v3.1.1/include/cxxopts.hpp" -O 3rdparty/cxxopts.hpp
+          wget -q "https://raw.githubusercontent.com/yhirose/cpp-httplib/v0.14.3/httplib.h" -O 3rdparty/cpp-httplib/httplib.h
+      - run: |
+          cmake -B build \
+            -DCMAKE_BUILD_TYPE=${{ env.CMAKE_BUILD_TYPE }} \
+            -DBUILD_HTTP_SERVER=ON
+      - run: cmake --build build --config ${{ env.CMAKE_BUILD_TYPE }} --parallel $(nproc)
+      - run: |
+          cp 3rdparty/onnxruntime/lib/libonnxruntime.so* build/bin/ 2>/dev/null || true
+          cp /usr/lib/x86_64-linux-gnu/libopencv_*.so* build/bin/ 2>/dev/null || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paddleocr-onnx-linux
+          path: |
+            build/bin/ocr_cli
+            build/bin/ocr_server
+            build/bin/libonnxruntime.so*
+            build/bin/libopencv_*.so*
+          retention-days: 7
+
+  build-macos-arm64:
+    name: Build macOS ARM64
+    runs-on: macos-14
+    needs: convert-models
+    env:
+      ONNXRUNTIME_VERSION: '1.20.1'
+      CMAKE_BUILD_TYPE: Release
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - run: brew install cmake opencv wget
+      - uses: actions/cache@v4
+        id: cache-onnx
+        with:
+          path: 3rdparty/onnxruntime
+          key: ${{ runner.os }}-${{ runner.arch }}-onnx-${{ env.ONNXRUNTIME_VERSION }}
+      - if: steps.cache-onnx.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p 3rdparty && cd 3rdparty
+          wget -q "https://github.com/microsoft/onnxruntime/releases/download/v${ONNXRUNTIME_VERSION}/onnxruntime-osx-arm64-${ONNXRUNTIME_VERSION}.tgz"
+          tar -xzf "onnxruntime-osx-arm64-${ONNXRUNTIME_VERSION}.tgz"
+          mv "onnxruntime-osx-arm64-${ONNXRUNTIME_VERSION}" onnxruntime
+          rm "onnxruntime-osx-arm64-${ONNXRUNTIME_VERSION}.tgz"
+      - run: |
+          mkdir -p 3rdparty/cpp-httplib
+          wget -q "https://raw.githubusercontent.com/jarro2783/cxxopts/v3.1.1/include/cxxopts.hpp" -O 3rdparty/cxxopts.hpp
+          wget -q "https://raw.githubusercontent.com/yhirose/cpp-httplib/v0.14.3/httplib.h" -O 3rdparty/cpp-httplib/httplib.h
+      - run: |
+          cmake -B build \
+            -DCMAKE_BUILD_TYPE=${{ env.CMAKE_BUILD_TYPE }} \
+            -DBUILD_HTTP_SERVER=ON \
+            -DOpenCV_DIR=$(brew --prefix opencv)/lib/cmake/opencv4
+      - run: cmake --build build --config ${{ env.CMAKE_BUILD_TYPE }} --parallel $(sysctl -n hw.ncpu)
+      - run: |
+          cp 3rdparty/onnxruntime/lib/libonnxruntime*.dylib build/bin/ 2>/dev/null || true
+          cp $(brew --prefix opencv)/lib/libopencv_*.dylib build/bin/ 2>/dev/null || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paddleocr-onnx-macos
+          path: |
+            build/bin/ocr_cli
+            build/bin/ocr_server
+            build/bin/libonnxruntime*.dylib
+            build/bin/libopencv_*.dylib
+          retention-days: 7
+
+  build-macos-intel:
+    name: Build macOS Intel
+    runs-on: macos-13
+    needs: convert-models
+    continue-on-error: true
+    env:
+      ONNXRUNTIME_VERSION: '1.20.1'
+      CMAKE_BUILD_TYPE: Release
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - run: brew install cmake opencv wget
+      - uses: actions/cache@v4
+        id: cache-onnx
+        with:
+          path: 3rdparty/onnxruntime
+          key: ${{ runner.os }}-${{ runner.arch }}-onnx-${{ env.ONNXRUNTIME_VERSION }}
+      - if: steps.cache-onnx.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p 3rdparty && cd 3rdparty
+          wget -q "https://github.com/microsoft/onnxruntime/releases/download/v${ONNXRUNTIME_VERSION}/onnxruntime-osx-x86_64-${ONNXRUNTIME_VERSION}.tgz"
+          tar -xzf "onnxruntime-osx-x86_64-${ONNXRUNTIME_VERSION}.tgz"
+          mv "onnxruntime-osx-x86_64-${ONNXRUNTIME_VERSION}" onnxruntime
+          rm "onnxruntime-osx-x86_64-${ONNXRUNTIME_VERSION}.tgz"
+      - run: |
+          mkdir -p 3rdparty/cpp-httplib
+          wget -q "https://raw.githubusercontent.com/jarro2783/cxxopts/v3.1.1/include/cxxopts.hpp" -O 3rdparty/cxxopts.hpp
+          wget -q "https://raw.githubusercontent.com/yhirose/cpp-httplib/v0.14.3/httplib.h" -O 3rdparty/cpp-httplib/httplib.h
+      - run: |
+          cmake -B build \
+            -DCMAKE_BUILD_TYPE=${{ env.CMAKE_BUILD_TYPE }} \
+            -DBUILD_HTTP_SERVER=ON \
+            -DOpenCV_DIR=$(brew --prefix opencv)/lib/cmake/opencv4
+      - run: cmake --build build --config ${{ env.CMAKE_BUILD_TYPE }} --parallel $(sysctl -n hw.ncpu)
+      - run: |
+          cp 3rdparty/onnxruntime/lib/libonnxruntime*.dylib build/bin/ 2>/dev/null || true
+          cp $(brew --prefix opencv)/lib/libopencv_*.dylib build/bin/ 2>/dev/null || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paddleocr-onnx-macos-intel
+          path: |
+            build/bin/ocr_cli
+            build/bin/ocr_server
+            build/bin/libonnxruntime*.dylib
+            build/bin/libopencv_*.dylib
+          retention-days: 7
+
   test-windows:
     name: Test on Windows
     runs-on: windows-2022
-    needs: [build-binaries, convert-models]
+    needs: [build-windows, convert-models]
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Download Windows binaries
-        uses: actions/download-artifact@v4
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
         with:
           name: paddleocr-onnx-windows
           path: bin
-
-      - name: Download model artifacts
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
           path: models
           pattern: '*'
           merge-multiple: true
-
-      - name: Run OCR test
-        shell: pwsh
+      - shell: pwsh
         run: |
           $det = Get-ChildItem -Recurse -Path models -Filter "*_det.onnx" | Select-Object -First 1
           $rec = Get-ChildItem -Recurse -Path models -Filter "*_rec.onnx" | Select-Object -First 1
           $dict = Get-ChildItem -Recurse -Path models -Filter "ppocr_keys_v1.txt" | Select-Object -First 1
-          Write-Host "Detection model: $($det.FullName)"
-          Write-Host "Recognition model: $($rec.FullName)"
-          Write-Host "Dictionary: $($dict.FullName)"
           .\bin\ocr_cli.exe tests\DP_CONSOLE.png `
             -d "$($det.FullName)" `
             -r "$($rec.FullName)" `
             --dict "$($dict.FullName)" `
             -o test_output.jpg `
             --json test_result.json
-
-      - name: Upload test results
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: ocr-test-results-windows
           path: |
@@ -88,42 +270,30 @@ jobs:
   test-linux:
     name: Test on Linux
     runs-on: ubuntu-22.04
-    needs: [build-binaries, convert-models]
+    needs: [build-linux, convert-models]
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Download Linux binaries
-        uses: actions/download-artifact@v4
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
         with:
           name: paddleocr-onnx-linux
           path: bin
-
-      - name: Download model artifacts
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
           path: models
           pattern: '*'
           merge-multiple: true
-
-      - name: Run OCR test
-        run: |
+      - run: |
           chmod +x bin/ocr_cli
           DET_MODEL=$(find models -name "*_det.onnx" | head -n1)
           REC_MODEL=$(find models -name "*_rec.onnx" | head -n1)
           DICT=$(find models -name "ppocr_keys_v1.txt" | head -n1)
-          echo "Detection model: $DET_MODEL"
-          echo "Recognition model: $REC_MODEL"
-          echo "Dictionary: $DICT"
           ./bin/ocr_cli tests/DP_CONSOLE.png \
             -d "$DET_MODEL" \
             -r "$REC_MODEL" \
             --dict "$DICT" \
             -o test_output.jpg \
             --json test_result.json
-
-      - name: Upload test results
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: ocr-test-results-linux
           path: |
@@ -134,42 +304,30 @@ jobs:
   test-macos-arm64:
     name: Test on macOS ARM64
     runs-on: macos-14
-    needs: [build-binaries, convert-models]
+    needs: [build-macos-arm64, convert-models]
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Download macOS binaries
-        uses: actions/download-artifact@v4
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
         with:
           name: paddleocr-onnx-macos
           path: bin
-
-      - name: Download model artifacts
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
           path: models
           pattern: '*'
           merge-multiple: true
-
-      - name: Run OCR test
-        run: |
+      - run: |
           chmod +x bin/ocr_cli
           DET_MODEL=$(find models -name "*_det.onnx" | head -n1)
           REC_MODEL=$(find models -name "*_rec.onnx" | head -n1)
           DICT=$(find models -name "ppocr_keys_v1.txt" | head -n1)
-          echo "Detection model: $DET_MODEL"
-          echo "Recognition model: $REC_MODEL"
-          echo "Dictionary: $DICT"
           ./bin/ocr_cli tests/DP_CONSOLE.png \
             -d "$DET_MODEL" \
             -r "$REC_MODEL" \
             --dict "$DICT" \
             -o test_output.jpg \
             --json test_result.json
-
-      - name: Upload test results
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: ocr-test-results-macos
           path: |
@@ -180,43 +338,31 @@ jobs:
   test-macos-intel:
     name: Test on macOS Intel
     runs-on: macos-13
-    needs: [build-binaries, convert-models]
+    needs: [build-macos-intel, convert-models]
     continue-on-error: true
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Download macOS Intel binaries
-        uses: actions/download-artifact@v4
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
         with:
           name: paddleocr-onnx-macos-intel
           path: bin
-
-      - name: Download model artifacts
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
           path: models
           pattern: '*'
           merge-multiple: true
-
-      - name: Run OCR test
-        run: |
+      - run: |
           chmod +x bin/ocr_cli
           DET_MODEL=$(find models -name "*_det.onnx" | head -n1)
           REC_MODEL=$(find models -name "*_rec.onnx" | head -n1)
           DICT=$(find models -name "ppocr_keys_v1.txt" | head -n1)
-          echo "Detection model: $DET_MODEL"
-          echo "Recognition model: $REC_MODEL"
-          echo "Dictionary: $DICT"
           ./bin/ocr_cli tests/DP_CONSOLE.png \
             -d "$DET_MODEL" \
             -r "$REC_MODEL" \
             --dict "$DICT" \
             -o test_output.jpg \
             --json test_result.json
-
-      - name: Upload test results
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: ocr-test-results-macos-intel
           path: |
@@ -227,7 +373,7 @@ jobs:
   create-release:
     name: Create GitHub Release
     runs-on: ubuntu-22.04
-    needs: [convert-models, build-binaries, test-windows, test-linux, test-macos-arm64]
+    needs: [convert-models, build-windows, build-linux, build-macos-arm64, test-windows, test-linux, test-macos-arm64]
     
     steps:
       - name: Checkout repository
