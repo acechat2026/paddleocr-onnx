@@ -23,7 +23,7 @@ if (-not $?) {
     Write-Host "You can still obtain ONNX models via:"
     Write-Host "  1. GitHub Actions CI (see .github/workflows/convert-models.yml)"
     Write-Host "  2. Install paddle2onnx locally:"
-    Write-Host "     pip install paddle2onnx==1.2.0 paddlepaddle==3.0.0"
+    Write-Host "     pip install paddle2onnx==2.1.0 paddlepaddle==3.0.0"
     Write-Host ""
     exit 0
 }

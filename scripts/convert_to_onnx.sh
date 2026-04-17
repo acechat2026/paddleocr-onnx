@@ -31,7 +31,7 @@ if ! command -v paddle2onnx &> /dev/null; then
     echo "You can still obtain ONNX models via:"
     echo "  1. GitHub Actions CI (see .github/workflows/convert-models.yml)"
     echo "  2. Install paddle2onnx locally:"
-    echo "     pip install paddle2onnx==1.2.0 paddlepaddle==3.0.0"
+    echo "     pip install paddle2onnx==2.1.0 paddlepaddle==3.0.0"
     echo ""
     exit 0
 fi

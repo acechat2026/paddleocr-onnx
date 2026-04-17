@@ -55,7 +55,7 @@ on:
       - 'scripts/convert_to_onnx.sh'
 
 env:
-  PADDLE2ONNX_VERSION: '1.2.0'
+  PADDLE2ONNX_VERSION: '2.1.0'
   OPSET_VERSION: '11'
 
 jobs:
