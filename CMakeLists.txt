@@ -302,10 +302,15 @@ if(WIN32 AND ONNXRUNTIME_DLL)
     )
 endif()
 
-# macOS-specific: Set runtime path
+# Platform-specific runtime path
 if(APPLE)
     set_target_properties(ocr_cli PROPERTIES
         INSTALL_RPATH "@executable_path/../lib"
+        BUILD_WITH_INSTALL_RPATH TRUE
+    )
+elseif(UNIX)
+    set_target_properties(ocr_cli PROPERTIES
+        INSTALL_RPATH "$ORIGIN"
         BUILD_WITH_INSTALL_RPATH TRUE
     )
 endif()
@@ -349,9 +354,14 @@ if(BUILD_HTTP_SERVER)
             )
         endif()
     elseif(APPLE)
-        target_link_libraries(ocr_server 
+        target_link_libraries(ocr_server
             "-framework CoreFoundation"
             "-framework Security"
+        )
+    elseif(UNIX)
+        set_target_properties(ocr_server PROPERTIES
+            INSTALL_RPATH "$ORIGIN"
+            BUILD_WITH_INSTALL_RPATH TRUE
         )
     endif()
     

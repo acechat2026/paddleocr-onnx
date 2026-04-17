@@ -6,8 +6,23 @@
 #include <algorithm>
 #include <cmath>
 #include <fstream>
+#ifdef _WIN32
+#include <windows.h>
+#endif
 #include <opencv2/imgproc.hpp>
 #include <opencv2/imgcodecs.hpp>
+
+namespace {
+#ifdef _WIN32
+std::wstring Utf8ToWide(const std::string& utf8) {
+    if (utf8.empty()) return std::wstring();
+    int size = MultiByteToWideChar(CP_UTF8, 0, utf8.c_str(), static_cast<int>(utf8.size()), nullptr, 0);
+    std::wstring result(size, 0);
+    MultiByteToWideChar(CP_UTF8, 0, utf8.c_str(), static_cast<int>(utf8.size()), &result[0], size);
+    return result;
+}
+#endif
+} // namespace
 
 namespace paddleocr {
 namespace onnx {
@@ -92,9 +107,15 @@ bool OCRDetector::CreateSession() {
         session_options_->SetIntraOpNumThreads(4);
         session_options_->SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
         
-        // Create session
-        session_ = std::make_unique<Ort::Session>(*env_, config_.model_path.c_str(), 
+        // Create session (Windows uses wchar_t paths)
+#ifdef _WIN32
+        std::wstring model_path_wide = Utf8ToWide(config_.model_path);
+        session_ = std::make_unique<Ort::Session>(*env_, model_path_wide.c_str(),
                                                    *session_options_);
+#else
+        session_ = std::make_unique<Ort::Session>(*env_, config_.model_path.c_str(),
+                                                   *session_options_);
+#endif
         
         // Get memory info
         memory_info_ = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);

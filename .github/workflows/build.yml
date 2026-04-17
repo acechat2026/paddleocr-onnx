@@ -150,7 +150,11 @@ jobs:
       - name: Build
         run: |
           cmake --build build --config ${{ env.CMAKE_BUILD_TYPE }} --parallel $(nproc)
-      
+
+      - name: Copy shared libraries for packaging
+        run: |
+          cp 3rdparty/onnxruntime/lib/libonnxruntime.so* build/bin/ 2>/dev/null || true
+
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -158,6 +162,7 @@ jobs:
           path: |
             build/bin/ocr_cli
             build/bin/ocr_server
+            build/bin/libonnxruntime.so*
           retention-days: 7
 
   convert-models:
@@ -279,6 +284,10 @@ jobs:
         run: |
           cmake --build build --config ${{ env.CMAKE_BUILD_TYPE }} --parallel $(sysctl -n hw.ncpu)
 
+      - name: Copy shared libraries for packaging
+        run: |
+          cp 3rdparty/onnxruntime/lib/libonnxruntime*.dylib build/bin/ 2>/dev/null || true
+
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -286,6 +295,7 @@ jobs:
           path: |
             build/bin/ocr_cli
             build/bin/ocr_server
+            build/bin/libonnxruntime*.dylib
           retention-days: 7
 
   build-macos-intel:
@@ -337,6 +347,10 @@ jobs:
         run: |
           cmake --build build --config ${{ env.CMAKE_BUILD_TYPE }} --parallel $(sysctl -n hw.ncpu)
 
+      - name: Copy shared libraries for packaging
+        run: |
+          cp 3rdparty/onnxruntime/lib/libonnxruntime*.dylib build/bin/ 2>/dev/null || true
+
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -344,4 +358,5 @@ jobs:
           path: |
             build/bin/ocr_cli
             build/bin/ocr_server
+            build/bin/libonnxruntime*.dylib
           retention-days: 7
