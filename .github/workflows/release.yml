@@ -121,7 +121,7 @@ jobs:
         id: cache-opencv
         with:
           path: 3rdparty/opencv/build/install
-          key: ${{ runner.os }}-opencv-static-v3-${{ env.OPENCV_VERSION }}
+          key: ${{ runner.os }}-opencv-static-v4-${{ env.OPENCV_VERSION }}
       - if: steps.cache-opencv.outputs.cache-hit != 'true'
         run: |
           mkdir -p 3rdparty && cd 3rdparty
@@ -168,13 +168,21 @@ jobs:
           cmake --install build
       - if: steps.cache-opencv.outputs.cache-hit != 'true'
         run: |
-          for f in "$GITHUB_WORKSPACE/3rdparty/opencv/build/install/lib/cmake/opencv4/OpenCVModules.cmake" \
-                   "$GITHUB_WORKSPACE/3rdparty/opencv/build/install/lib/cmake/opencv4/OpenCVModules-release.cmake"; do
-            if [ -f "$f" ]; then
-              sed -i.bak -e '/ade/d' -e '/libprotobuf/d' -e '/protobuf/d' "$f"
-              rm -f "$f.bak"
-            fi
-          done
+          INSTALL_PREFIX="$GITHUB_WORKSPACE/3rdparty/opencv/build/install"
+          CMAKE_DIR="$INSTALL_PREFIX/lib/cmake/opencv4"
+          rm -f "$CMAKE_DIR/OpenCVModules.cmake" "$CMAKE_DIR/OpenCVModules-release.cmake"
+          cat > "$CMAKE_DIR/OpenCVConfig.cmake" << 'CMAKEDOC'
+          set(OpenCV_FOUND TRUE)
+          set(OpenCV_VERSION "4.10.0")
+          get_filename_component(OpenCV_INSTALL_PREFIX "${CMAKE_CURRENT_LIST_DIR}/../../../" ABSOLUTE)
+          set(OpenCV_INCLUDE_DIRS "${OpenCV_INSTALL_PREFIX}/include/opencv4")
+          set(OpenCV_LIBS
+              "${OpenCV_INSTALL_PREFIX}/lib/libopencv_imgcodecs.a"
+              "${OpenCV_INSTALL_PREFIX}/lib/libopencv_imgproc.a"
+              "${OpenCV_INSTALL_PREFIX}/lib/libopencv_core.a"
+              "-lz"
+          )
+          CMAKEDOC
       - run: |
           mkdir -p 3rdparty/cpp-httplib
           wget -q "https://raw.githubusercontent.com/jarro2783/cxxopts/v3.1.1/include/cxxopts.hpp" -O 3rdparty/cxxopts.hpp
@@ -225,7 +233,7 @@ jobs:
         id: cache-opencv
         with:
           path: 3rdparty/opencv/build/install
-          key: ${{ runner.os }}-${{ runner.arch }}-opencv-static-v3-${{ env.OPENCV_VERSION }}
+          key: ${{ runner.os }}-${{ runner.arch }}-opencv-static-v4-${{ env.OPENCV_VERSION }}
       - if: steps.cache-opencv.outputs.cache-hit != 'true'
         run: |
           mkdir -p 3rdparty && cd 3rdparty
@@ -270,6 +278,23 @@ jobs:
             -DBUILD_opencv_videoio=OFF
           cmake --build build --parallel $(sysctl -n hw.ncpu)
           cmake --install build
+      - if: steps.cache-opencv.outputs.cache-hit != 'true'
+        run: |
+          INSTALL_PREFIX="$GITHUB_WORKSPACE/3rdparty/opencv/build/install"
+          CMAKE_DIR="$INSTALL_PREFIX/lib/cmake/opencv4"
+          rm -f "$CMAKE_DIR/OpenCVModules.cmake" "$CMAKE_DIR/OpenCVModules-release.cmake"
+          cat > "$CMAKE_DIR/OpenCVConfig.cmake" << 'CMAKEDOC'
+          set(OpenCV_FOUND TRUE)
+          set(OpenCV_VERSION "4.10.0")
+          get_filename_component(OpenCV_INSTALL_PREFIX "${CMAKE_CURRENT_LIST_DIR}/../../../" ABSOLUTE)
+          set(OpenCV_INCLUDE_DIRS "${OpenCV_INSTALL_PREFIX}/include/opencv4")
+          set(OpenCV_LIBS
+              "${OpenCV_INSTALL_PREFIX}/lib/libopencv_imgcodecs.a"
+              "${OpenCV_INSTALL_PREFIX}/lib/libopencv_imgproc.a"
+              "${OpenCV_INSTALL_PREFIX}/lib/libopencv_core.a"
+              "-lz"
+          )
+          CMAKEDOC
       - run: |
           mkdir -p 3rdparty/cpp-httplib
           wget -q "https://raw.githubusercontent.com/jarro2783/cxxopts/v3.1.1/include/cxxopts.hpp" -O 3rdparty/cxxopts.hpp
@@ -321,7 +346,7 @@ jobs:
         id: cache-opencv
         with:
           path: 3rdparty/opencv/build/install
-          key: ${{ runner.os }}-${{ runner.arch }}-opencv-static-v3-${{ env.OPENCV_VERSION }}
+          key: ${{ runner.os }}-${{ runner.arch }}-opencv-static-v4-${{ env.OPENCV_VERSION }}
       - if: steps.cache-opencv.outputs.cache-hit != 'true'
         run: |
           mkdir -p 3rdparty && cd 3rdparty
@@ -366,6 +391,23 @@ jobs:
             -DBUILD_opencv_videoio=OFF
           cmake --build build --parallel $(sysctl -n hw.ncpu)
           cmake --install build
+      - if: steps.cache-opencv.outputs.cache-hit != 'true'
+        run: |
+          INSTALL_PREFIX="$GITHUB_WORKSPACE/3rdparty/opencv/build/install"
+          CMAKE_DIR="$INSTALL_PREFIX/lib/cmake/opencv4"
+          rm -f "$CMAKE_DIR/OpenCVModules.cmake" "$CMAKE_DIR/OpenCVModules-release.cmake"
+          cat > "$CMAKE_DIR/OpenCVConfig.cmake" << 'CMAKEDOC'
+          set(OpenCV_FOUND TRUE)
+          set(OpenCV_VERSION "4.10.0")
+          get_filename_component(OpenCV_INSTALL_PREFIX "${CMAKE_CURRENT_LIST_DIR}/../../../" ABSOLUTE)
+          set(OpenCV_INCLUDE_DIRS "${OpenCV_INSTALL_PREFIX}/include/opencv4")
+          set(OpenCV_LIBS
+              "${OpenCV_INSTALL_PREFIX}/lib/libopencv_imgcodecs.a"
+              "${OpenCV_INSTALL_PREFIX}/lib/libopencv_imgproc.a"
+              "${OpenCV_INSTALL_PREFIX}/lib/libopencv_core.a"
+              "-lz"
+          )
+          CMAKEDOC
       - run: |
           mkdir -p 3rdparty/cpp-httplib
           wget -q "https://raw.githubusercontent.com/jarro2783/cxxopts/v3.1.1/include/cxxopts.hpp" -O 3rdparty/cxxopts.hpp
