@@ -56,10 +56,38 @@ download_and_extract() {
 
     print_info "Extracting $model_name..."
     tar -xf "$tar_file"
-    mv "${model_name}_infer" "$model_name"
-    rm "$tar_file"
 
-    print_info "$model_name downloaded and extracted."
+    # Detect extracted directory (some tars use different top-level names)
+    local extracted_dir=""
+    for d in */; do
+        if [ -f "${d}inference.pdmodel" ] || [ -f "${d}inference.pdiparams" ]; then
+            extracted_dir="${d%/}"
+            break
+        fi
+    done
+
+    # Handle flat extraction (no subdirectory)
+    if [ -z "$extracted_dir" ]; then
+        if [ -f "inference.pdmodel" ] || [ -f "inference.pdiparams" ]; then
+            mkdir -p "$model_name"
+            mv inference.pdmodel inference.pdiparams "$model_name/" 2>/dev/null || true
+            extracted_dir="$model_name"
+        fi
+    fi
+
+    rm -f "$tar_file"
+
+    if [ -n "$extracted_dir" ] && [ "$extracted_dir" != "$model_name" ]; then
+        mv "$extracted_dir" "$model_name"
+    fi
+
+    if [ -f "$model_name/inference.pdmodel" ] && [ -f "$model_name/inference.pdiparams" ]; then
+        print_info "$model_name downloaded and extracted."
+    else
+        echo "Error: Model files not found for $model_name"
+        find . -maxdepth 3 -type f
+        exit 1
+    fi
 }
 
 # ==========================================

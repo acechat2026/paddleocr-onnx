@@ -141,26 +141,50 @@ jobs:
       - name: Download detection model
         id: download_det
         run: |
+          set -e
           MODEL_NAME="${{ steps.vars.outputs.det_model_name }}"
           MODEL_URL="https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0/${MODEL_NAME}_infer.tar"
-          
+
           echo "Downloading from: ${MODEL_URL}"
-          
+
           cd models/paddle
-          wget -q --show-progress "${MODEL_URL}" -O "${MODEL_NAME}.tar"
-          
+          wget -q "${MODEL_URL}" -O "${MODEL_NAME}.tar"
+
           echo "Extracting model..."
           tar -xf "${MODEL_NAME}.tar"
-          mv "${MODEL_NAME}_infer" "${MODEL_NAME}"
-          rm "${MODEL_NAME}.tar"
-          
+
+          # Detect extracted directory (some tars use different top-level names)
+          EXTRACTED_DIR=""
+          for d in */; do
+            if [ -f "${d}inference.pdmodel" ] || [ -f "${d}inference.pdiparams" ]; then
+              EXTRACTED_DIR="${d%/}"
+              break
+            fi
+          done
+
+          # Handle flat extraction (no subdirectory)
+          if [ -z "${EXTRACTED_DIR}" ]; then
+            if [ -f "inference.pdmodel" ] || [ -f "inference.pdiparams" ]; then
+              mkdir -p "${MODEL_NAME}"
+              mv inference.pdmodel inference.pdiparams "${MODEL_NAME}/" 2>/dev/null || true
+              EXTRACTED_DIR="${MODEL_NAME}"
+            fi
+          fi
+
+          rm -f "${MODEL_NAME}.tar"
+
+          if [ -n "${EXTRACTED_DIR}" ] && [ "${EXTRACTED_DIR}" != "${MODEL_NAME}" ]; then
+            mv "${EXTRACTED_DIR}" "${MODEL_NAME}"
+          fi
+
           echo "Model extracted to: models/paddle/${MODEL_NAME}"
-          
+
           # Verify model files
           if [ -f "${MODEL_NAME}/inference.pdmodel" ] && [ -f "${MODEL_NAME}/inference.pdiparams" ]; then
             echo "Model files verified"
           else
             echo "Error: Model files not found"
+            find . -maxdepth 3 -type f
             exit 1
           fi
       
@@ -250,18 +274,52 @@ jobs:
       
       - name: Download recognition model
         run: |
+          set -e
           MODEL_NAME="${{ steps.vars.outputs.rec_model_name }}"
           MODEL_URL="https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0/${MODEL_NAME}_infer.tar"
-          
+
           echo "Downloading from: ${MODEL_URL}"
-          
+
           cd models/paddle
-          wget -q --show-progress "${MODEL_URL}" -O "${MODEL_NAME}.tar"
-          
+          wget -q "${MODEL_URL}" -O "${MODEL_NAME}.tar"
+
           echo "Extracting model..."
           tar -xf "${MODEL_NAME}.tar"
-          mv "${MODEL_NAME}_infer" "${MODEL_NAME}"
-          rm "${MODEL_NAME}.tar"
+
+          # Detect extracted directory
+          EXTRACTED_DIR=""
+          for d in */; do
+            if [ -f "${d}inference.pdmodel" ] || [ -f "${d}inference.pdiparams" ]; then
+              EXTRACTED_DIR="${d%/}"
+              break
+            fi
+          done
+
+          # Handle flat extraction
+          if [ -z "${EXTRACTED_DIR}" ]; then
+            if [ -f "inference.pdmodel" ] || [ -f "inference.pdiparams" ]; then
+              mkdir -p "${MODEL_NAME}"
+              mv inference.pdmodel inference.pdiparams "${MODEL_NAME}/" 2>/dev/null || true
+              EXTRACTED_DIR="${MODEL_NAME}"
+            fi
+          fi
+
+          rm -f "${MODEL_NAME}.tar"
+
+          if [ -n "${EXTRACTED_DIR}" ] && [ "${EXTRACTED_DIR}" != "${MODEL_NAME}" ]; then
+            mv "${EXTRACTED_DIR}" "${MODEL_NAME}"
+          fi
+
+          echo "Model extracted to: models/paddle/${MODEL_NAME}"
+
+          # Verify model files
+          if [ -f "${MODEL_NAME}/inference.pdmodel" ] && [ -f "${MODEL_NAME}/inference.pdiparams" ]; then
+            echo "Model files verified"
+          else
+            echo "Error: Model files not found"
+            find . -maxdepth 3 -type f
+            exit 1
+          fi
       
       - name: Convert recognition model to ONNX
         id: convert_rec
