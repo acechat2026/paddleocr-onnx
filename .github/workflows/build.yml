@@ -16,6 +16,7 @@ on:
       - '**.md'
       - 'docs/**'
   workflow_dispatch:
+  workflow_call:
 
 env:
   ONNXRUNTIME_VERSION: '1.20.1'

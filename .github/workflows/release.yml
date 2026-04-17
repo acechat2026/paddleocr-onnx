@@ -117,23 +117,40 @@ jobs:
         run: |
           cat > release/RELEASE_NOTES.md << 'EOF'
           # PaddleOCR ONNX Runtime ${{ steps.version.outputs.version }}
-          
+
           ## What's New
-          
+
           - PP-OCRv5 Server models support
           - Command-line tool (ocr_cli) with GPU/CPU support
           - HTTP server (ocr_server) with RESTful API
           - Cross-platform support (Windows, Linux, macOS)
-          
+
           ## Models Included
-          
+
           | Model | Size | Description |
           |-------|------|-------------|
           | PP-OCRv5_server_det.onnx | ~84 MB | Text detection (server version) |
           | PP-OCRv5_server_rec.onnx | ~81 MB | Text recognition (server version) |
-          
+
           ## Quick Start
-          
+
           ### Command Line
           ```bash
           ./ocr_cli input.jpg -d models/PP-OCRv5_server_det.onnx -r models/PP-OCRv5_server_rec.onnx --dict models/ppocr_keys_v1.txt
+          ```
+          EOF
+
+      - name: Create GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          gh release create "${VERSION}" \
+            --title "PaddleOCR ONNX ${VERSION}" \
+            --notes-file release/RELEASE_NOTES.md \
+            release/paddleocr-onnx-models-${VERSION}.tar.gz \
+            release/paddleocr-onnx-models-${VERSION}.zip \
+            release/paddleocr-onnx-windows-${VERSION}.zip \
+            release/paddleocr-onnx-linux-${VERSION}.tar.gz \
+            release/paddleocr-onnx-macos-${VERSION}.tar.gz \
+            release/checksums.txt
