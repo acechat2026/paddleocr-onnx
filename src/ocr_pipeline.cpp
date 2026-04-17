@@ -7,6 +7,7 @@
 #include <fstream>
 #include <sstream>
 #include <future>
+#include <iomanip>
 #include <opencv2/imgproc.hpp>
 #include <opencv2/imgcodecs.hpp>
 

@@ -6,6 +6,7 @@
 #include <vector>
 #include <fstream>
 #include <chrono>
+#include <iomanip>
 #include <cxxopts.hpp>
 
 #include <opencv2/imgcodecs.hpp>
