@@ -128,14 +128,23 @@ jobs:
       - run: |
           cp 3rdparty/onnxruntime/lib/libonnxruntime.so* build/bin/ 2>/dev/null || true
           cp /usr/lib/x86_64-linux-gnu/libopencv_*.so* build/bin/ 2>/dev/null || true
+          # Recursively copy transitive dependencies (e.g. libgdcm, libtiff, etc.)
+          for lib in $(ldd build/bin/ocr_cli build/bin/ocr_server | grep "=> /" | awk '{print $3}' | sort -u); do
+            case "$lib" in
+              /lib*/ld-linux* | /lib*/libc.so* | /lib*/libm.so* | /lib*/libdl.so* | /lib*/libpthread.so* | /lib*/librt.so* | /usr/lib*/libgcc_s.so* | /lib*/libstdc++.so*)
+                ;;
+              *)
+                cp -v "$lib" build/bin/ || true
+                ;;
+            esac
+          done
       - uses: actions/upload-artifact@v4
         with:
           name: paddleocr-onnx-linux
           path: |
             build/bin/ocr_cli
             build/bin/ocr_server
-            build/bin/libonnxruntime.so*
-            build/bin/libopencv_*.so*
+            build/bin/*.so*
           retention-days: 7
 
   build-macos-arm64:
@@ -253,7 +262,7 @@ jobs:
           $det = Get-ChildItem -Recurse -Path models -Filter "*_det.onnx" | Select-Object -First 1
           $rec = Get-ChildItem -Recurse -Path models -Filter "*_rec.onnx" | Select-Object -First 1
           $dict = Get-ChildItem -Recurse -Path models -Filter "ppocr_keys_v1.txt" | Select-Object -First 1
-          .\bin\ocr_cli.exe tests\DP_CONSOLE.png `
+          .\bin\ocr_cli.exe -i tests\DP_CONSOLE.png `
             -d "$($det.FullName)" `
             -r "$($rec.FullName)" `
             --dict "$($dict.FullName)" `
