@@ -70,12 +70,18 @@ jobs:
           
           # Create models package
           echo "Creating models package..."
-          mkdir -p release/models/onnx release/models/dicts
-          
-          # Copy model files
+          mkdir -p release/models/onnx release/models/dicts release/models/paddle
+
+          # Copy ONNX models and dictionaries
           find release-artifacts -name "*.onnx" -exec cp {} release/models/onnx/ \;
           find release-artifacts -name "*.txt" -exec cp {} release/models/dicts/ \;
-          
+
+          # Copy original Paddle models
+          find release-artifacts -type d | grep '/models/paddle/PP-OCRv5' | while read src; do
+            name=$(basename "$src")
+            cp -r "$src" "release/models/paddle/"
+          done
+
           cd release
           tar -czf "paddleocr-onnx-models-${{ steps.version.outputs.version }}.tar.gz" models/
           zip -r "paddleocr-onnx-models-${{ steps.version.outputs.version }}.zip" models/
@@ -107,14 +113,19 @@ jobs:
           tar -czf "../paddleocr-onnx-macos-${{ steps.version.outputs.version }}.tar.gz" .
           cd ../..
 
-          # Create macOS Intel package
+          # Create macOS Intel package (may be missing if runner is queued/fails)
           echo "Creating macOS Intel package..."
           mkdir -p release/macos-intel
           find release-artifacts -path "*/paddleocr-onnx-macos-intel/*" -exec cp {} release/macos-intel/ \;
-          cd release/macos-intel
-          chmod +x ocr_cli ocr_server
-          tar -czf "../paddleocr-onnx-macos-intel-${{ steps.version.outputs.version }}.tar.gz" .
-          cd ../..
+          if [ -n "$(ls -A release/macos-intel 2>/dev/null)" ]; then
+            cd release/macos-intel
+            chmod +x ocr_cli ocr_server
+            tar -czf "../paddleocr-onnx-macos-intel-${{ steps.version.outputs.version }}.tar.gz" .
+            cd ../..
+          else
+            echo "No macOS Intel binaries found, skipping package."
+            rmdir release/macos-intel
+          fi
 
           # Generate checksums
           cd release
@@ -154,13 +165,18 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION="${{ steps.version.outputs.version }}"
+          ASSETS=(
+            "release/paddleocr-onnx-models-${VERSION}.tar.gz"
+            "release/paddleocr-onnx-models-${VERSION}.zip"
+            "release/paddleocr-onnx-windows-${VERSION}.zip"
+            "release/paddleocr-onnx-linux-${VERSION}.tar.gz"
+            "release/paddleocr-onnx-macos-${VERSION}.tar.gz"
+            "release/checksums.txt"
+          )
+          if [ -f "release/paddleocr-onnx-macos-intel-${VERSION}.tar.gz" ]; then
+            ASSETS+=("release/paddleocr-onnx-macos-intel-${VERSION}.tar.gz")
+          fi
           gh release create "${VERSION}" \
             --title "PaddleOCR ONNX ${VERSION}" \
             --notes-file release/RELEASE_NOTES.md \
-            release/paddleocr-onnx-models-${VERSION}.tar.gz \
-            release/paddleocr-onnx-models-${VERSION}.zip \
-            release/paddleocr-onnx-windows-${VERSION}.zip \
-            release/paddleocr-onnx-linux-${VERSION}.tar.gz \
-            release/paddleocr-onnx-macos-${VERSION}.tar.gz \
-            release/paddleocr-onnx-macos-intel-${VERSION}.tar.gz \
-            release/checksums.txt
+            "${ASSETS[@]}"

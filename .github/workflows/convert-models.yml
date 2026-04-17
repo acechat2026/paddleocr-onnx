@@ -240,8 +240,12 @@ jobs:
           name: ${{ steps.vars.outputs.det_model_name }}
           path: |
             models/onnx/${{ steps.vars.outputs.det_model_name }}.onnx
+            models/paddle/${{ steps.vars.outputs.det_model_name }}/inference.json
+            models/paddle/${{ steps.vars.outputs.det_model_name }}/inference.pdiparams
+            models/paddle/${{ steps.vars.outputs.det_model_name }}/inference.pdmodel
           retention-days: 90
           compression-level: 6
+          if-no-files-found: warn
 
   convert-recognition:
     name: Convert Recognition Model
@@ -379,8 +383,12 @@ jobs:
           name: ${{ steps.vars.outputs.rec_model_name }}
           path: |
             models/onnx/${{ steps.vars.outputs.rec_model_name }}.onnx
+            models/paddle/${{ steps.vars.outputs.rec_model_name }}/inference.json
+            models/paddle/${{ steps.vars.outputs.rec_model_name }}/inference.pdiparams
+            models/paddle/${{ steps.vars.outputs.rec_model_name }}/inference.pdmodel
           retention-days: 90
           compression-level: 6
+          if-no-files-found: warn
 
   download-dictionaries:
     name: Download Dictionaries

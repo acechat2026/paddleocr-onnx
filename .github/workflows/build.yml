@@ -301,6 +301,7 @@ jobs:
   build-macos-intel:
     name: macOS (Intel)
     runs-on: macos-13
+    continue-on-error: true
 
     steps:
       - name: Checkout repository
