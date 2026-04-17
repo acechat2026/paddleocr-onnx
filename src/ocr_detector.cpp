@@ -88,14 +88,9 @@ bool OCRDetector::Init(const DetectorConfig& config) {
 }
 
 bool OCRDetector::Init(const OCRConfig& config) {
-    DetectorConfig det_config;
+    DetectorConfig det_config = config.detector;
     det_config.model_path = config.det_model_path;
-    det_config.db_thresh = config.detector.db_thresh;
-    det_config.db_box_thresh = config.detector.db_box_thresh;
-    det_config.db_unclip_ratio = config.detector.db_unclip_ratio;
-    det_config.limit_side_len = config.detector.limit_side_len;
-    det_config.batch_size = config.detector.batch_size;
-    
+
     return Init(det_config);
 }
 

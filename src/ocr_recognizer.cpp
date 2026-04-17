@@ -96,13 +96,10 @@ bool OCRRecognizer::Init(const RecognizerConfig& config) {
 }
 
 bool OCRRecognizer::Init(const OCRConfig& config) {
-    RecognizerConfig rec_config;
+    RecognizerConfig rec_config = config.recognizer;
     rec_config.model_path = config.rec_model_path;
     rec_config.dict_path = config.dict_path;
-    rec_config.image_height = config.recognizer.image_height;
-    rec_config.batch_size = config.recognizer.batch_size;
-    rec_config.drop_score = config.recognizer.drop_score;
-    
+
     return Init(rec_config);
 }
 
@@ -158,9 +155,17 @@ bool OCRRecognizer::CreateSession() {
             output_shapes_.push_back(tensor_info.GetShape());
         }
 
-        // Set blank index (last class in CTC, after all dictionary chars)
-        blank_index_ = static_cast<int>(dictionary_.size());
-        
+        // Set blank index to 0 to match PaddleOCR Python (blank inserted at dict front)
+        blank_index_ = 0;
+
+        // Verify output class count aligns with dict + blank
+        if (!output_shapes_.empty() && !output_shapes_[0].empty()) {
+            int64_t num_classes = output_shapes_[0].back();
+            std::cout << "OCRRecognizer: dictionary size=" << (dictionary_.size() - 1)
+                      << " (with blank=" << dictionary_.size()
+                      << "), model num_classes=" << num_classes << std::endl;
+        }
+
         return true;
         
     } catch (const Ort::Exception& e) {
@@ -171,7 +176,12 @@ bool OCRRecognizer::CreateSession() {
 
 bool OCRRecognizer::LoadDictionary() {
     dictionary_ = paddleocr::onnx::LoadDictionary(config_.dict_path);
-    return !dictionary_.empty();
+    if (dictionary_.empty()) {
+        return false;
+    }
+    // Insert CTC blank token at index 0 to match PaddleOCR Python behavior
+    dictionary_.insert(dictionary_.begin(), "");
+    return true;
 }
 
 // ============================================
@@ -307,13 +317,14 @@ std::vector<float> OCRRecognizer::PreprocessBatch(const std::vector<cv::Mat>& im
             }
         }
         
-        // Copy to blob (CHW format)
+        // Copy to blob (CHW format, BGR -> RGB)
         int base_offset = b * channels * height * width;
         for (int c = 0; c < channels; ++c) {
+            int channel_idx = 2 - c;  // BGR to RGB
             for (int h = 0; h < height; ++h) {
                 for (int w = 0; w < new_width; ++w) {
                     int idx = base_offset + c * height * width + h * width + w;
-                    blob[idx] = resized.at<cv::Vec3f>(h, w)[c];
+                    blob[idx] = resized.at<cv::Vec3f>(h, w)[channel_idx];
                 }
             }
         }
