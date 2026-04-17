@@ -127,7 +127,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install onnx==1.16.0
-          pip install six
+          pip install six packaging
           pip install paddle2onnx==${PADDLE2ONNX_VERSION}
           # Try Paddle official wheel index, then PyPI, then fallback to 2.6.x
           pip install paddlepaddle==3.0.0 -f https://www.paddlepaddle.org.cn/whl/linux/mkl/avx/stable.html || \
@@ -270,7 +270,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install onnx==1.16.0
-          pip install six
+          pip install six packaging
           pip install paddle2onnx==${PADDLE2ONNX_VERSION}
           # Try Paddle official wheel index, then PyPI, then fallback to 2.6.x
           pip install paddlepaddle==3.0.0 -f https://www.paddlepaddle.org.cn/whl/linux/mkl/avx/stable.html || \
