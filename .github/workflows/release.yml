@@ -259,6 +259,8 @@ jobs:
           merge-multiple: true
       - shell: pwsh
         run: |
+          Write-Host "=== Files in bin/ ==="
+          Get-ChildItem -Path bin | ForEach-Object { Write-Host $_.Name }
           $det = Get-ChildItem -Recurse -Path models -Filter "*_det.onnx" | Select-Object -First 1
           $rec = Get-ChildItem -Recurse -Path models -Filter "*_rec.onnx" | Select-Object -First 1
           $dict = Get-ChildItem -Recurse -Path models -Filter "ppocr_keys_v1.txt" | Select-Object -First 1
@@ -292,11 +294,16 @@ jobs:
           pattern: '*'
           merge-multiple: true
       - run: |
+          sudo apt update && sudo apt install -y libopencv-dev
           chmod +x bin/ocr_cli
+          echo "=== ocr_cli dependencies ==="
+          ldd bin/ocr_cli
+          echo "=== libraries in bin/ ==="
+          ls -la bin/*.so* 2>/dev/null || true
           DET_MODEL=$(find models -name "*_det.onnx" | head -n1)
           REC_MODEL=$(find models -name "*_rec.onnx" | head -n1)
           DICT=$(find models -name "ppocr_keys_v1.txt" | head -n1)
-          ./bin/ocr_cli tests/DP_CONSOLE.png \
+          LD_LIBRARY_PATH=bin ./bin/ocr_cli -i tests/DP_CONSOLE.png \
             -d "$DET_MODEL" \
             -r "$REC_MODEL" \
             --dict "$DICT" \
@@ -326,11 +333,15 @@ jobs:
           pattern: '*'
           merge-multiple: true
       - run: |
+          echo "=== ocr_cli dependencies ==="
+          otool -L bin/ocr_cli
+          echo "=== dylibs in bin/ ==="
+          ls -la bin/*.dylib 2>/dev/null || true
           chmod +x bin/ocr_cli
           DET_MODEL=$(find models -name "*_det.onnx" | head -n1)
           REC_MODEL=$(find models -name "*_rec.onnx" | head -n1)
           DICT=$(find models -name "ppocr_keys_v1.txt" | head -n1)
-          ./bin/ocr_cli tests/DP_CONSOLE.png \
+          DYLD_LIBRARY_PATH=bin ./bin/ocr_cli -i tests/DP_CONSOLE.png \
             -d "$DET_MODEL" \
             -r "$REC_MODEL" \
             --dict "$DICT" \
@@ -361,11 +372,15 @@ jobs:
           pattern: '*'
           merge-multiple: true
       - run: |
+          echo "=== ocr_cli dependencies ==="
+          otool -L bin/ocr_cli
+          echo "=== dylibs in bin/ ==="
+          ls -la bin/*.dylib 2>/dev/null || true
           chmod +x bin/ocr_cli
           DET_MODEL=$(find models -name "*_det.onnx" | head -n1)
           REC_MODEL=$(find models -name "*_rec.onnx" | head -n1)
           DICT=$(find models -name "ppocr_keys_v1.txt" | head -n1)
-          ./bin/ocr_cli tests/DP_CONSOLE.png \
+          DYLD_LIBRARY_PATH=bin ./bin/ocr_cli -i tests/DP_CONSOLE.png \
             -d "$DET_MODEL" \
             -r "$REC_MODEL" \
             --dict "$DICT" \

@@ -305,7 +305,7 @@ endif()
 # Platform-specific runtime path
 if(APPLE)
     set_target_properties(ocr_cli PROPERTIES
-        INSTALL_RPATH "@executable_path/../lib"
+        INSTALL_RPATH "@executable_path"
         BUILD_WITH_INSTALL_RPATH TRUE
     )
 elseif(UNIX)
@@ -357,6 +357,10 @@ if(BUILD_HTTP_SERVER)
         target_link_libraries(ocr_server
             "-framework CoreFoundation"
             "-framework Security"
+        )
+        set_target_properties(ocr_server PROPERTIES
+            INSTALL_RPATH "@executable_path"
+            BUILD_WITH_INSTALL_RPATH TRUE
         )
     elseif(UNIX)
         set_target_properties(ocr_server PROPERTIES

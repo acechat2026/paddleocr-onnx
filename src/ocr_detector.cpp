@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cmath>
 #include <fstream>
+#include <iostream>
 #ifdef _WIN32
 #include <windows.h>
 #endif
@@ -156,7 +157,7 @@ bool OCRDetector::CreateSession() {
         return true;
         
     } catch (const Ort::Exception& e) {
-        // Log error: e.what()
+        std::cerr << "OCRDetector::CreateSession error: " << e.what() << std::endl;
         return false;
     }
 }
