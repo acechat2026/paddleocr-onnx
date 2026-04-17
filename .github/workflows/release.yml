@@ -98,15 +98,24 @@ jobs:
           tar -czf "../paddleocr-onnx-linux-${{ steps.version.outputs.version }}.tar.gz" .
           cd ../..
           
-          # Create macOS package
-          echo "Creating macOS package..."
+          # Create macOS ARM64 package
+          echo "Creating macOS ARM64 package..."
           mkdir -p release/macos
           find release-artifacts -path "*/paddleocr-onnx-macos/*" -exec cp {} release/macos/ \;
           cd release/macos
           chmod +x ocr_cli ocr_server
           tar -czf "../paddleocr-onnx-macos-${{ steps.version.outputs.version }}.tar.gz" .
           cd ../..
-          
+
+          # Create macOS Intel package
+          echo "Creating macOS Intel package..."
+          mkdir -p release/macos-intel
+          find release-artifacts -path "*/paddleocr-onnx-macos-intel/*" -exec cp {} release/macos-intel/ \;
+          cd release/macos-intel
+          chmod +x ocr_cli ocr_server
+          tar -czf "../paddleocr-onnx-macos-intel-${{ steps.version.outputs.version }}.tar.gz" .
+          cd ../..
+
           # Generate checksums
           cd release
           sha256sum *.tar.gz *.zip > checksums.txt
@@ -153,4 +162,5 @@ jobs:
             release/paddleocr-onnx-windows-${VERSION}.zip \
             release/paddleocr-onnx-linux-${VERSION}.tar.gz \
             release/paddleocr-onnx-macos-${VERSION}.tar.gz \
+            release/paddleocr-onnx-macos-intel-${VERSION}.tar.gz \
             release/checksums.txt

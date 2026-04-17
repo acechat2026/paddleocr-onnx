@@ -229,65 +229,117 @@ jobs:
           echo "=== JSON Result ==="
           cat test_result.json || echo "No JSON output"
 
-  build-macos:
+  build-macos-arm64:
     name: macOS (Apple Silicon)
     runs-on: macos-14
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           submodules: recursive
-      
+
       - name: Install system dependencies
         run: |
           brew install cmake opencv wget
-      
+
       - name: Cache ONNX Runtime
         id: cache-onnx
         uses: actions/cache@v4
         with:
           path: 3rdparty/onnxruntime
           key: ${{ runner.os }}-${{ runner.arch }}-onnx-${{ env.ONNXRUNTIME_VERSION }}
-      
+
       - name: Download ONNX Runtime
         if: steps.cache-onnx.outputs.cache-hit != 'true'
         run: |
           mkdir -p 3rdparty
           cd 3rdparty
-          
-          if [[ "$(uname -m)" == "arm64" ]]; then
-            ONNX_ARCH="arm64"
-          else
-            ONNX_ARCH="x86_64"
-          fi
-          
-          wget -q "https://github.com/microsoft/onnxruntime/releases/download/v${ONNXRUNTIME_VERSION}/onnxruntime-osx-${ONNX_ARCH}-${ONNXRUNTIME_VERSION}.tgz"
-          tar -xzf "onnxruntime-osx-${ONNX_ARCH}-${ONNXRUNTIME_VERSION}.tgz"
-          mv "onnxruntime-osx-${ONNX_ARCH}-${ONNXRUNTIME_VERSION}" onnxruntime
-          rm "onnxruntime-osx-${ONNX_ARCH}-${ONNXRUNTIME_VERSION}.tgz"
-      
+
+          wget -q "https://github.com/microsoft/onnxruntime/releases/download/v${ONNXRUNTIME_VERSION}/onnxruntime-osx-arm64-${ONNXRUNTIME_VERSION}.tgz"
+          tar -xzf "onnxruntime-osx-arm64-${ONNXRUNTIME_VERSION}.tgz"
+          mv "onnxruntime-osx-arm64-${ONNXRUNTIME_VERSION}" onnxruntime
+          rm "onnxruntime-osx-arm64-${ONNXRUNTIME_VERSION}.tgz"
+
       - name: Download header-only libraries
         run: |
           mkdir -p 3rdparty/cpp-httplib
           wget -q "https://raw.githubusercontent.com/jarro2783/cxxopts/v3.1.1/include/cxxopts.hpp" -O 3rdparty/cxxopts.hpp
           wget -q "https://raw.githubusercontent.com/yhirose/cpp-httplib/v0.14.3/httplib.h" -O 3rdparty/cpp-httplib/httplib.h
-      
+
       - name: Configure CMake
         run: |
           cmake -B build \
             -DCMAKE_BUILD_TYPE=${{ env.CMAKE_BUILD_TYPE }} \
             -DBUILD_HTTP_SERVER=ON \
             -DOpenCV_DIR=$(brew --prefix opencv)/lib/cmake/opencv4
-      
+
       - name: Build
         run: |
           cmake --build build --config ${{ env.CMAKE_BUILD_TYPE }} --parallel $(sysctl -n hw.ncpu)
-      
+
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: paddleocr-onnx-macos
+          path: |
+            build/bin/ocr_cli
+            build/bin/ocr_server
+          retention-days: 7
+
+  build-macos-intel:
+    name: macOS (Intel)
+    runs-on: macos-13
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install system dependencies
+        run: |
+          brew install cmake opencv wget
+
+      - name: Cache ONNX Runtime
+        id: cache-onnx
+        uses: actions/cache@v4
+        with:
+          path: 3rdparty/onnxruntime
+          key: ${{ runner.os }}-${{ runner.arch }}-onnx-${{ env.ONNXRUNTIME_VERSION }}
+
+      - name: Download ONNX Runtime
+        if: steps.cache-onnx.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p 3rdparty
+          cd 3rdparty
+
+          wget -q "https://github.com/microsoft/onnxruntime/releases/download/v${ONNXRUNTIME_VERSION}/onnxruntime-osx-x86_64-${ONNXRUNTIME_VERSION}.tgz"
+          tar -xzf "onnxruntime-osx-x86_64-${ONNXRUNTIME_VERSION}.tgz"
+          mv "onnxruntime-osx-x86_64-${ONNXRUNTIME_VERSION}" onnxruntime
+          rm "onnxruntime-osx-x86_64-${ONNXRUNTIME_VERSION}.tgz"
+
+      - name: Download header-only libraries
+        run: |
+          mkdir -p 3rdparty/cpp-httplib
+          wget -q "https://raw.githubusercontent.com/jarro2783/cxxopts/v3.1.1/include/cxxopts.hpp" -O 3rdparty/cxxopts.hpp
+          wget -q "https://raw.githubusercontent.com/yhirose/cpp-httplib/v0.14.3/httplib.h" -O 3rdparty/cpp-httplib/httplib.h
+
+      - name: Configure CMake
+        run: |
+          cmake -B build \
+            -DCMAKE_BUILD_TYPE=${{ env.CMAKE_BUILD_TYPE }} \
+            -DBUILD_HTTP_SERVER=ON \
+            -DOpenCV_DIR=$(brew --prefix opencv)/lib/cmake/opencv4
+
+      - name: Build
+        run: |
+          cmake --build build --config ${{ env.CMAKE_BUILD_TYPE }} --parallel $(sysctl -n hw.ncpu)
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: paddleocr-onnx-macos-intel
           path: |
             build/bin/ocr_cli
             build/bin/ocr_server

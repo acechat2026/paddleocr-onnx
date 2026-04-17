@@ -322,8 +322,8 @@ jobs:
 
           echo "Model extracted to: models/paddle/${MODEL_NAME}"
 
-          # Verify model files
-          if [ -f "${MODEL_NAME}/inference.pdmodel" ] && [ -f "${MODEL_NAME}/inference.pdiparams" ]; then
+          # Verify model files (Paddle 3.0 uses inference.json instead of inference.pdmodel)
+          if [ -f "${MODEL_NAME}/inference.pdiparams" ] && ([ -f "${MODEL_NAME}/inference.pdmodel" ] || [ -f "${MODEL_NAME}/inference.json" ]); then
             echo "Model files verified"
           else
             echo "Error: Model files not found"
