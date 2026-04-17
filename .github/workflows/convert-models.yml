@@ -64,7 +64,9 @@ jobs:
     runs-on: ubuntu-22.04
     outputs:
       det_model_name: ${{ steps.vars.outputs.det_model_name }}
+      rec_model_name: ${{ steps.vars.outputs.rec_model_name }}
       det_onnx_file: ${{ steps.vars.outputs.det_onnx_file }}
+      rec_onnx_file: ${{ steps.vars.outputs.rec_onnx_file }}
     
     steps:
       - name: Checkout repository
