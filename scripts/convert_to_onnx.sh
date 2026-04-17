@@ -81,7 +81,6 @@ convert_model() {
         --save_file "$onnx_file" \
         --opset_version 11 \
         --enable_onnx_checker True \
-        --input_shape_dict "x${input_shape}" \
         2>&1 | grep -v "UserWarning" || true
 
     if [ -f "$onnx_file" ]; then
