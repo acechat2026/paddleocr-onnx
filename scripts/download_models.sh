@@ -81,7 +81,7 @@ download_and_extract() {
         mv "$extracted_dir" "$model_name"
     fi
 
-    if [ -f "$model_name/inference.pdmodel" ] && [ -f "$model_name/inference.pdiparams" ]; then
+    if [ -f "$model_name/inference.pdiparams" ] && ([ -f "$model_name/inference.pdmodel" ] || [ -f "$model_name/inference.json" ]); then
         print_info "$model_name downloaded and extracted."
     else
         echo "Error: Model files not found for $model_name"

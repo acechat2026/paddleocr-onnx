@@ -179,26 +179,33 @@ jobs:
 
           echo "Model extracted to: models/paddle/${MODEL_NAME}"
 
-          # Verify model files
-          if [ -f "${MODEL_NAME}/inference.pdmodel" ] && [ -f "${MODEL_NAME}/inference.pdiparams" ]; then
+          # Verify model files (Paddle 3.0 uses inference.json instead of inference.pdmodel)
+          if [ -f "${MODEL_NAME}/inference.pdiparams" ] && ([ -f "${MODEL_NAME}/inference.pdmodel" ] || [ -f "${MODEL_NAME}/inference.json" ]); then
             echo "Model files verified"
           else
             echo "Error: Model files not found"
             find . -maxdepth 3 -type f
             exit 1
           fi
-      
+
       - name: Convert detection model to ONNX
         id: convert_det
         run: |
           MODEL_NAME="${{ steps.vars.outputs.det_model_name }}"
           ONNX_FILE="models/onnx/${MODEL_NAME}.onnx"
-          
+
           echo "Converting ${MODEL_NAME} to ONNX..."
-          
+
+          # Paddle 3.0 models use inference.json; older models use inference.pdmodel
+          if [ -f "models/paddle/${MODEL_NAME}/inference.pdmodel" ]; then
+            MODEL_FILE="inference.pdmodel"
+          else
+            MODEL_FILE="inference.json"
+          fi
+
           paddle2onnx \
             --model_dir "models/paddle/${MODEL_NAME}" \
-            --model_filename inference.pdmodel \
+            --model_filename "${MODEL_FILE}" \
             --params_filename inference.pdiparams \
             --save_file "${ONNX_FILE}" \
             --opset_version ${OPSET_VERSION} \

@@ -57,7 +57,13 @@ function Convert-Model {
     # Build paddle2onnx command
     $inputShape = if ($ModelType -eq "det") { " -1 3 -1 -1" } else { " -1 3 48 -1" }
 
-    $cmd = "paddle2onnx --model_dir `"$PaddleModelDir`" --model_filename inference.pdmodel --params_filename inference.pdiparams --save_file `"$OnnxFile`" --opset_version 11 --enable_onnx_checker True --input_shape_dict `"x$inputShape`""
+    # Paddle 3.0 models use inference.json; older models use inference.pdmodel
+    $modelFile = "inference.pdmodel"
+    if (-not (Test-Path (Join-Path $PaddleModelDir "inference.pdmodel")) -and (Test-Path (Join-Path $PaddleModelDir "inference.json"))) {
+        $modelFile = "inference.json"
+    }
+
+    $cmd = "paddle2onnx --model_dir `"$PaddleModelDir`" --model_filename $modelFile --params_filename inference.pdiparams --save_file `"$OnnxFile`" --opset_version 11 --enable_onnx_checker True --input_shape_dict `"x$inputShape`""
 
     try {
         Invoke-Expression $cmd 2>&1 | Where-Object { $_ -notmatch "UserWarning" }

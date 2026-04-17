@@ -52,16 +52,37 @@ function Download-And-Extract {
     # Extract using tar (built into Windows 10+)
     tar -xf $TarFile -C $PaddleDir
 
-    # Rename extracted directory
-    $ExtractedName = "${ModelName}_infer"
-    $ExtractedPath = Join-Path $PaddleDir $ExtractedName
-    if (Test-Path $ExtractedPath) {
-        Rename-Item -Path $ExtractedPath -NewName $ModelName
+    # Detect extracted directory (some tars use different top-level names)
+    $ExtractedDir = $null
+    foreach ($d in Get-ChildItem -Path $PaddleDir -Directory) {
+        if ((Test-Path (Join-Path $d.FullName "inference.pdmodel")) -or
+            (Test-Path (Join-Path $d.FullName "inference.pdiparams"))) {
+            $ExtractedDir = $d
+            break
+        }
+    }
+
+    # Rename to expected name if needed
+    if ($ExtractedDir -and ($ExtractedDir.Name -ne $ModelName)) {
+        Rename-Item -Path $ExtractedDir.FullName -NewName $ModelName -Force
     }
 
     Remove-Item $TarFile
 
-    Write-Host "[INFO] $ModelName downloaded and extracted." -ForegroundColor Green
+    # Verify model files (Paddle 3.0 uses inference.json instead of inference.pdmodel)
+    $ModelPath = Join-Path $PaddleDir $ModelName
+    $HasPdModel = Test-Path (Join-Path $ModelPath "inference.pdmodel")
+    $HasJson = Test-Path (Join-Path $ModelPath "inference.json")
+    $HasParams = Test-Path (Join-Path $ModelPath "inference.pdiparams")
+
+    if ($HasParams -and ($HasPdModel -or $HasJson)) {
+        Write-Host "[INFO] $ModelName downloaded and extracted." -ForegroundColor Green
+    }
+    else {
+        Write-Host "[ERROR] Model files not found for $ModelName" -ForegroundColor Red
+        Get-ChildItem -Path $ModelPath -Recurse -File | ForEach-Object { Write-Host "  $($_.FullName)" }
+        exit 1
+    }
 }
 
 # ==========================================

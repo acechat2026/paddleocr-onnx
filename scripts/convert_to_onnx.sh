@@ -68,9 +68,15 @@ convert_model() {
         input_shape=" -1 3 48 -1"
     fi
 
+    # Paddle 3.0 models use inference.json; older models use inference.pdmodel
+    local model_file="inference.pdmodel"
+    if [ ! -f "$paddle_model_dir/inference.pdmodel" ] && [ -f "$paddle_model_dir/inference.json" ]; then
+        model_file="inference.json"
+    fi
+
     paddle2onnx \
         --model_dir "$paddle_model_dir" \
-        --model_filename inference.pdmodel \
+        --model_filename "$model_file" \
         --params_filename inference.pdiparams \
         --save_file "$onnx_file" \
         --opset_version 11 \
