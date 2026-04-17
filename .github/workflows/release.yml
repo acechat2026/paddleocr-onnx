@@ -98,12 +98,13 @@ jobs:
     needs: convert-models
     env:
       ONNXRUNTIME_VERSION: '1.20.1'
+      OPENCV_VERSION: '4.10.0'
       CMAKE_BUILD_TYPE: Release
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-      - run: sudo apt update && sudo apt install -y build-essential cmake libopencv-dev wget
+      - run: sudo apt update && sudo apt install -y build-essential cmake wget unzip
       - uses: actions/cache@v4
         id: cache-onnx
         with:
@@ -116,6 +117,53 @@ jobs:
           tar -xzf "onnxruntime-linux-x64-${ONNXRUNTIME_VERSION}.tgz"
           mv "onnxruntime-linux-x64-${ONNXRUNTIME_VERSION}" onnxruntime
           rm "onnxruntime-linux-x64-${ONNXRUNTIME_VERSION}.tgz"
+      - uses: actions/cache@v4
+        id: cache-opencv
+        with:
+          path: 3rdparty/opencv/build/install
+          key: ${{ runner.os }}-opencv-static-${{ env.OPENCV_VERSION }}
+      - if: steps.cache-opencv.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p 3rdparty && cd 3rdparty
+          wget -q "https://github.com/opencv/opencv/archive/${OPENCV_VERSION}.zip" -O opencv.zip
+          unzip -q opencv.zip
+          mv "opencv-${OPENCV_VERSION}" opencv-src
+          cd opencv-src
+          cmake -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX="$GITHUB_WORKSPACE/3rdparty/opencv/build/install" \
+            -DBUILD_SHARED_LIBS=OFF \
+            -DBUILD_LIST=core,imgproc,imgcodecs \
+            -DWITH_JPEG=ON \
+            -DWITH_PNG=ON \
+            -DWITH_TIFF=OFF \
+            -DWITH_WEBP=OFF \
+            -DWITH_OPENEXR=OFF \
+            -DWITH_GDAL=OFF \
+            -DWITH_GDCM=OFF \
+            -DWITH_FFMPEG=OFF \
+            -DWITH_WIN32UI=OFF \
+            -DWITH_QT=OFF \
+            -DWITH_GTK=OFF \
+            -DBUILD_EXAMPLES=OFF \
+            -DBUILD_TESTS=OFF \
+            -DBUILD_PERF_TESTS=OFF \
+            -DBUILD_opencv_apps=OFF \
+            -DBUILD_opencv_python2=OFF \
+            -DBUILD_opencv_python3=OFF \
+            -DBUILD_opencv_java=OFF \
+            -DBUILD_opencv_calib3d=OFF \
+            -DBUILD_opencv_features2d=OFF \
+            -DBUILD_opencv_flann=OFF \
+            -DBUILD_opencv_highgui=OFF \
+            -DBUILD_opencv_ml=OFF \
+            -DBUILD_opencv_objdetect=OFF \
+            -DBUILD_opencv_photo=OFF \
+            -DBUILD_opencv_stitching=OFF \
+            -DBUILD_opencv_video=OFF \
+            -DBUILD_opencv_videoio=OFF
+          cmake --build build --parallel $(nproc)
+          cmake --install build
       - run: |
           mkdir -p 3rdparty/cpp-httplib
           wget -q "https://raw.githubusercontent.com/jarro2783/cxxopts/v3.1.1/include/cxxopts.hpp" -O 3rdparty/cxxopts.hpp
@@ -123,28 +171,18 @@ jobs:
       - run: |
           cmake -B build \
             -DCMAKE_BUILD_TYPE=${{ env.CMAKE_BUILD_TYPE }} \
-            -DBUILD_HTTP_SERVER=ON
+            -DBUILD_HTTP_SERVER=ON \
+            -DOpenCV_DIR="$GITHUB_WORKSPACE/3rdparty/opencv/build/install/lib/cmake/opencv4"
       - run: cmake --build build --config ${{ env.CMAKE_BUILD_TYPE }} --parallel $(nproc)
       - run: |
           cp 3rdparty/onnxruntime/lib/libonnxruntime.so* build/bin/ 2>/dev/null || true
-          cp /usr/lib/x86_64-linux-gnu/libopencv_*.so* build/bin/ 2>/dev/null || true
-          # Recursively copy transitive dependencies (e.g. libgdcm, libtiff, etc.)
-          for lib in $(ldd build/bin/ocr_cli build/bin/ocr_server | grep "=> /" | awk '{print $3}' | sort -u); do
-            case "$lib" in
-              /lib*/ld-linux* | /lib*/libc.so* | /lib*/libm.so* | /lib*/libdl.so* | /lib*/libpthread.so* | /lib*/librt.so* | /usr/lib*/libgcc_s.so* | /lib*/libstdc++.so*)
-                ;;
-              *)
-                cp -v "$lib" build/bin/ || true
-                ;;
-            esac
-          done
       - uses: actions/upload-artifact@v4
         with:
           name: paddleocr-onnx-linux
           path: |
             build/bin/ocr_cli
             build/bin/ocr_server
-            build/bin/*.so*
+            build/bin/libonnxruntime.so*
           retention-days: 7
 
   build-macos-arm64:
@@ -153,12 +191,13 @@ jobs:
     needs: convert-models
     env:
       ONNXRUNTIME_VERSION: '1.20.1'
+      OPENCV_VERSION: '4.10.0'
       CMAKE_BUILD_TYPE: Release
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-      - run: brew install cmake opencv wget
+      - run: brew install cmake wget
       - uses: actions/cache@v4
         id: cache-onnx
         with:
@@ -171,6 +210,53 @@ jobs:
           tar -xzf "onnxruntime-osx-arm64-${ONNXRUNTIME_VERSION}.tgz"
           mv "onnxruntime-osx-arm64-${ONNXRUNTIME_VERSION}" onnxruntime
           rm "onnxruntime-osx-arm64-${ONNXRUNTIME_VERSION}.tgz"
+      - uses: actions/cache@v4
+        id: cache-opencv
+        with:
+          path: 3rdparty/opencv/build/install
+          key: ${{ runner.os }}-${{ runner.arch }}-opencv-static-${{ env.OPENCV_VERSION }}
+      - if: steps.cache-opencv.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p 3rdparty && cd 3rdparty
+          wget -q "https://github.com/opencv/opencv/archive/${OPENCV_VERSION}.zip" -O opencv.zip
+          unzip -q opencv.zip
+          mv "opencv-${OPENCV_VERSION}" opencv-src
+          cd opencv-src
+          cmake -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX="$GITHUB_WORKSPACE/3rdparty/opencv/build/install" \
+            -DBUILD_SHARED_LIBS=OFF \
+            -DBUILD_LIST=core,imgproc,imgcodecs \
+            -DWITH_JPEG=ON \
+            -DWITH_PNG=ON \
+            -DWITH_TIFF=OFF \
+            -DWITH_WEBP=OFF \
+            -DWITH_OPENEXR=OFF \
+            -DWITH_GDAL=OFF \
+            -DWITH_GDCM=OFF \
+            -DWITH_FFMPEG=OFF \
+            -DWITH_WIN32UI=OFF \
+            -DWITH_QT=OFF \
+            -DWITH_GTK=OFF \
+            -DBUILD_EXAMPLES=OFF \
+            -DBUILD_TESTS=OFF \
+            -DBUILD_PERF_TESTS=OFF \
+            -DBUILD_opencv_apps=OFF \
+            -DBUILD_opencv_python2=OFF \
+            -DBUILD_opencv_python3=OFF \
+            -DBUILD_opencv_java=OFF \
+            -DBUILD_opencv_calib3d=OFF \
+            -DBUILD_opencv_features2d=OFF \
+            -DBUILD_opencv_flann=OFF \
+            -DBUILD_opencv_highgui=OFF \
+            -DBUILD_opencv_ml=OFF \
+            -DBUILD_opencv_objdetect=OFF \
+            -DBUILD_opencv_photo=OFF \
+            -DBUILD_opencv_stitching=OFF \
+            -DBUILD_opencv_video=OFF \
+            -DBUILD_opencv_videoio=OFF
+          cmake --build build --parallel $(sysctl -n hw.ncpu)
+          cmake --install build
       - run: |
           mkdir -p 3rdparty/cpp-httplib
           wget -q "https://raw.githubusercontent.com/jarro2783/cxxopts/v3.1.1/include/cxxopts.hpp" -O 3rdparty/cxxopts.hpp
@@ -179,11 +265,10 @@ jobs:
           cmake -B build \
             -DCMAKE_BUILD_TYPE=${{ env.CMAKE_BUILD_TYPE }} \
             -DBUILD_HTTP_SERVER=ON \
-            -DOpenCV_DIR=$(brew --prefix opencv)/lib/cmake/opencv4
+            -DOpenCV_DIR="$GITHUB_WORKSPACE/3rdparty/opencv/build/install/lib/cmake/opencv4"
       - run: cmake --build build --config ${{ env.CMAKE_BUILD_TYPE }} --parallel $(sysctl -n hw.ncpu)
       - run: |
           cp 3rdparty/onnxruntime/lib/libonnxruntime*.dylib build/bin/ 2>/dev/null || true
-          cp $(brew --prefix opencv)/lib/libopencv_*.dylib build/bin/ 2>/dev/null || true
       - uses: actions/upload-artifact@v4
         with:
           name: paddleocr-onnx-macos
@@ -191,7 +276,6 @@ jobs:
             build/bin/ocr_cli
             build/bin/ocr_server
             build/bin/libonnxruntime*.dylib
-            build/bin/libopencv_*.dylib
           retention-days: 7
 
   build-macos-intel:
@@ -201,12 +285,13 @@ jobs:
     continue-on-error: true
     env:
       ONNXRUNTIME_VERSION: '1.20.1'
+      OPENCV_VERSION: '4.10.0'
       CMAKE_BUILD_TYPE: Release
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-      - run: brew install cmake opencv wget
+      - run: brew install cmake wget
       - uses: actions/cache@v4
         id: cache-onnx
         with:
@@ -219,6 +304,53 @@ jobs:
           tar -xzf "onnxruntime-osx-x86_64-${ONNXRUNTIME_VERSION}.tgz"
           mv "onnxruntime-osx-x86_64-${ONNXRUNTIME_VERSION}" onnxruntime
           rm "onnxruntime-osx-x86_64-${ONNXRUNTIME_VERSION}.tgz"
+      - uses: actions/cache@v4
+        id: cache-opencv
+        with:
+          path: 3rdparty/opencv/build/install
+          key: ${{ runner.os }}-${{ runner.arch }}-opencv-static-${{ env.OPENCV_VERSION }}
+      - if: steps.cache-opencv.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p 3rdparty && cd 3rdparty
+          wget -q "https://github.com/opencv/opencv/archive/${OPENCV_VERSION}.zip" -O opencv.zip
+          unzip -q opencv.zip
+          mv "opencv-${OPENCV_VERSION}" opencv-src
+          cd opencv-src
+          cmake -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX="$GITHUB_WORKSPACE/3rdparty/opencv/build/install" \
+            -DBUILD_SHARED_LIBS=OFF \
+            -DBUILD_LIST=core,imgproc,imgcodecs \
+            -DWITH_JPEG=ON \
+            -DWITH_PNG=ON \
+            -DWITH_TIFF=OFF \
+            -DWITH_WEBP=OFF \
+            -DWITH_OPENEXR=OFF \
+            -DWITH_GDAL=OFF \
+            -DWITH_GDCM=OFF \
+            -DWITH_FFMPEG=OFF \
+            -DWITH_WIN32UI=OFF \
+            -DWITH_QT=OFF \
+            -DWITH_GTK=OFF \
+            -DBUILD_EXAMPLES=OFF \
+            -DBUILD_TESTS=OFF \
+            -DBUILD_PERF_TESTS=OFF \
+            -DBUILD_opencv_apps=OFF \
+            -DBUILD_opencv_python2=OFF \
+            -DBUILD_opencv_python3=OFF \
+            -DBUILD_opencv_java=OFF \
+            -DBUILD_opencv_calib3d=OFF \
+            -DBUILD_opencv_features2d=OFF \
+            -DBUILD_opencv_flann=OFF \
+            -DBUILD_opencv_highgui=OFF \
+            -DBUILD_opencv_ml=OFF \
+            -DBUILD_opencv_objdetect=OFF \
+            -DBUILD_opencv_photo=OFF \
+            -DBUILD_opencv_stitching=OFF \
+            -DBUILD_opencv_video=OFF \
+            -DBUILD_opencv_videoio=OFF
+          cmake --build build --parallel $(sysctl -n hw.ncpu)
+          cmake --install build
       - run: |
           mkdir -p 3rdparty/cpp-httplib
           wget -q "https://raw.githubusercontent.com/jarro2783/cxxopts/v3.1.1/include/cxxopts.hpp" -O 3rdparty/cxxopts.hpp
@@ -227,11 +359,10 @@ jobs:
           cmake -B build \
             -DCMAKE_BUILD_TYPE=${{ env.CMAKE_BUILD_TYPE }} \
             -DBUILD_HTTP_SERVER=ON \
-            -DOpenCV_DIR=$(brew --prefix opencv)/lib/cmake/opencv4
+            -DOpenCV_DIR="$GITHUB_WORKSPACE/3rdparty/opencv/build/install/lib/cmake/opencv4"
       - run: cmake --build build --config ${{ env.CMAKE_BUILD_TYPE }} --parallel $(sysctl -n hw.ncpu)
       - run: |
           cp 3rdparty/onnxruntime/lib/libonnxruntime*.dylib build/bin/ 2>/dev/null || true
-          cp $(brew --prefix opencv)/lib/libopencv_*.dylib build/bin/ 2>/dev/null || true
       - uses: actions/upload-artifact@v4
         with:
           name: paddleocr-onnx-macos-intel
@@ -239,7 +370,6 @@ jobs:
             build/bin/ocr_cli
             build/bin/ocr_server
             build/bin/libonnxruntime*.dylib
-            build/bin/libopencv_*.dylib
           retention-days: 7
 
   test-windows:
@@ -294,7 +424,6 @@ jobs:
           pattern: '*'
           merge-multiple: true
       - run: |
-          sudo apt update && sudo apt install -y libopencv-dev
           chmod +x bin/ocr_cli
           echo "=== ocr_cli dependencies ==="
           ldd bin/ocr_cli

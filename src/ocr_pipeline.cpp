@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <fstream>
+#include <iostream>
 #include <sstream>
 #include <future>
 #include <iomanip>
@@ -50,21 +51,24 @@ OCRPipeline& OCRPipeline::operator=(OCRPipeline&& other) noexcept {
 
 bool OCRPipeline::Init(const OCRConfig& config) {
     config_ = config;
-    
+
     if (!config_.Validate()) {
+        std::cerr << "OCRPipeline::Init error: OCRConfig validation failed" << std::endl;
         return false;
     }
-    
+
     // Initialize detector
     if (!detector_.Init(config_)) {
+        std::cerr << "OCRPipeline::Init error: detector initialization failed" << std::endl;
         return false;
     }
-    
+
     // Initialize recognizer
     if (!recognizer_.Init(config_)) {
+        std::cerr << "OCRPipeline::Init error: recognizer initialization failed" << std::endl;
         return false;
     }
-    
+
     return true;
 }
 
@@ -75,15 +79,17 @@ bool OCRPipeline::Init(const DetectorConfig& det_config,
     config_.det_model_path = det_config.model_path;
     config_.rec_model_path = rec_config.model_path;
     config_.dict_path = rec_config.dict_path;
-    
+
     if (!detector_.Init(det_config)) {
+        std::cerr << "OCRPipeline::Init error: detector initialization failed" << std::endl;
         return false;
     }
-    
+
     if (!recognizer_.Init(rec_config)) {
+        std::cerr << "OCRPipeline::Init error: recognizer initialization failed" << std::endl;
         return false;
     }
-    
+
     return true;
 }
 

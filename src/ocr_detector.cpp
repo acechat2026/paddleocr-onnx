@@ -73,15 +73,16 @@ OCRDetector& OCRDetector::operator=(OCRDetector&& other) noexcept {
 
 bool OCRDetector::Init(const DetectorConfig& config) {
     config_ = config;
-    
+
     if (!config_.Validate()) {
+        std::cerr << "OCRDetector::Init error: DetectorConfig validation failed" << std::endl;
         return false;
     }
-    
+
     if (!CreateSession()) {
         return false;
     }
-    
+
     initialized_ = true;
     return true;
 }

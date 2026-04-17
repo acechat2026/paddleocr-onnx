@@ -78,10 +78,12 @@ bool OCRRecognizer::Init(const RecognizerConfig& config) {
     config_ = config;
     
     if (!config_.Validate()) {
+        std::cerr << "OCRRecognizer::Init error: RecognizerConfig validation failed" << std::endl;
         return false;
     }
-    
+
     if (!LoadDictionary()) {
+        std::cerr << "OCRRecognizer::Init error: failed to load dictionary from " << config_.dict_path << std::endl;
         return false;
     }
     
