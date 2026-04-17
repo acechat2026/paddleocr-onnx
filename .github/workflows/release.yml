@@ -121,7 +121,7 @@ jobs:
         id: cache-opencv
         with:
           path: 3rdparty/opencv/build/install
-          key: ${{ runner.os }}-opencv-static-v2-${{ env.OPENCV_VERSION }}
+          key: ${{ runner.os }}-opencv-static-v3-${{ env.OPENCV_VERSION }}
       - if: steps.cache-opencv.outputs.cache-hit != 'true'
         run: |
           mkdir -p 3rdparty && cd 3rdparty
@@ -157,6 +157,7 @@ jobs:
             -DBUILD_opencv_features2d=OFF \
             -DBUILD_opencv_flann=OFF \
             -DBUILD_opencv_highgui=OFF \
+            -DBUILD_opencv_gapi=OFF \
             -DBUILD_opencv_ml=OFF \
             -DBUILD_opencv_objdetect=OFF \
             -DBUILD_opencv_photo=OFF \
@@ -215,7 +216,7 @@ jobs:
         id: cache-opencv
         with:
           path: 3rdparty/opencv/build/install
-          key: ${{ runner.os }}-${{ runner.arch }}-opencv-static-v2-${{ env.OPENCV_VERSION }}
+          key: ${{ runner.os }}-${{ runner.arch }}-opencv-static-v3-${{ env.OPENCV_VERSION }}
       - if: steps.cache-opencv.outputs.cache-hit != 'true'
         run: |
           mkdir -p 3rdparty && cd 3rdparty
@@ -251,6 +252,7 @@ jobs:
             -DBUILD_opencv_features2d=OFF \
             -DBUILD_opencv_flann=OFF \
             -DBUILD_opencv_highgui=OFF \
+            -DBUILD_opencv_gapi=OFF \
             -DBUILD_opencv_ml=OFF \
             -DBUILD_opencv_objdetect=OFF \
             -DBUILD_opencv_photo=OFF \
@@ -310,7 +312,7 @@ jobs:
         id: cache-opencv
         with:
           path: 3rdparty/opencv/build/install
-          key: ${{ runner.os }}-${{ runner.arch }}-opencv-static-v2-${{ env.OPENCV_VERSION }}
+          key: ${{ runner.os }}-${{ runner.arch }}-opencv-static-v3-${{ env.OPENCV_VERSION }}
       - if: steps.cache-opencv.outputs.cache-hit != 'true'
         run: |
           mkdir -p 3rdparty && cd 3rdparty
@@ -346,6 +348,7 @@ jobs:
             -DBUILD_opencv_features2d=OFF \
             -DBUILD_opencv_flann=OFF \
             -DBUILD_opencv_highgui=OFF \
+            -DBUILD_opencv_gapi=OFF \
             -DBUILD_opencv_ml=OFF \
             -DBUILD_opencv_objdetect=OFF \
             -DBUILD_opencv_photo=OFF \
