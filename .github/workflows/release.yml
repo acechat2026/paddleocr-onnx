@@ -1,0 +1,139 @@
+# Create GitHub Release with models and binaries
+
+name: Create Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., v1.0.0)'
+        required: true
+        type: string
+      model_version:
+        description: 'Model version'
+        required: true
+        type: choice
+        default: 'v5_server'
+        options:
+          - v5_server
+          - v5_mobile
+      create_latest:
+        description: 'Mark as latest release'
+        required: false
+        type: boolean
+        default: true
+
+jobs:
+  convert-models:
+    name: Convert Models
+    uses: ./.github/workflows/convert-models.yml
+    with:
+      model_version: ${{ inputs.model_version || 'v5_server' }}
+      upload_artifact: true
+  
+  build-binaries:
+    name: Build Binaries
+    needs: convert-models
+    uses: ./.github/workflows/build.yml
+  
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-22.04
+    needs: [convert-models, build-binaries]
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Determine version
+        id: version
+        run: |
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            VERSION="${GITHUB_REF#refs/tags/}"
+          else
+            VERSION="${{ inputs.version }}"
+          fi
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "Release version: ${VERSION}"
+      
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+      
+      - name: Organize release artifacts
+        run: |
+          mkdir -p release
+          
+          # Create models package
+          echo "Creating models package..."
+          mkdir -p release/models/onnx release/models/dicts
+          
+          # Copy model files
+          find release-artifacts -name "*.onnx" -exec cp {} release/models/onnx/ \;
+          find release-artifacts -name "*.txt" -exec cp {} release/models/dicts/ \;
+          
+          cd release
+          tar -czf "paddleocr-onnx-models-${{ steps.version.outputs.version }}.tar.gz" models/
+          zip -r "paddleocr-onnx-models-${{ steps.version.outputs.version }}.zip" models/
+          cd ..
+          
+          # Create Windows package
+          echo "Creating Windows package..."
+          mkdir -p release/windows
+          find release-artifacts -path "*/paddleocr-onnx-windows/*" -exec cp -r {} release/windows/ \;
+          cd release/windows
+          zip -r "../paddleocr-onnx-windows-${{ steps.version.outputs.version }}.zip" .
+          cd ../..
+          
+          # Create Linux package
+          echo "Creating Linux package..."
+          mkdir -p release/linux
+          find release-artifacts -path "*/paddleocr-onnx-linux/*" -exec cp {} release/linux/ \;
+          cd release/linux
+          chmod +x ocr_cli ocr_server
+          tar -czf "../paddleocr-onnx-linux-${{ steps.version.outputs.version }}.tar.gz" .
+          cd ../..
+          
+          # Create macOS package
+          echo "Creating macOS package..."
+          mkdir -p release/macos
+          find release-artifacts -path "*/paddleocr-onnx-macos/*" -exec cp {} release/macos/ \;
+          cd release/macos
+          chmod +x ocr_cli ocr_server
+          tar -czf "../paddleocr-onnx-macos-${{ steps.version.outputs.version }}.tar.gz" .
+          cd ../..
+          
+          # Generate checksums
+          cd release
+          sha256sum *.tar.gz *.zip > checksums.txt
+          cat checksums.txt
+          cd ..
+      
+      - name: Generate release notes
+        run: |
+          cat > release/RELEASE_NOTES.md << 'EOF'
+          # PaddleOCR ONNX Runtime ${{ steps.version.outputs.version }}
+          
+          ## What's New
+          
+          - PP-OCRv5 Server models support
+          - Command-line tool (ocr_cli) with GPU/CPU support
+          - HTTP server (ocr_server) with RESTful API
+          - Cross-platform support (Windows, Linux, macOS)
+          
+          ## Models Included
+          
+          | Model | Size | Description |
+          |-------|------|-------------|
+          | PP-OCRv5_server_det.onnx | ~84 MB | Text detection (server version) |
+          | PP-OCRv5_server_rec.onnx | ~81 MB | Text recognition (server version) |
+          
+          ## Quick Start
+          
+          ### Command Line
+          ```bash
+          ./ocr_cli input.jpg -d models/PP-OCRv5_server_det.onnx -r models/PP-OCRv5_server_rec.onnx --dict models/ppocr_keys_v1.txt

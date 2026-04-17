@@ -1,0 +1,375 @@
+# Convert PaddleOCR models to ONNX format
+# This workflow downloads official Paddle models and converts them to ONNX
+
+name: Convert Models to ONNX
+
+on:
+  workflow_call:
+    inputs:
+      model_version:
+        description: 'Model version to convert'
+        required: false
+        type: string
+        default: 'v5_server'
+      upload_artifact:
+        description: 'Upload models as artifacts'
+        required: false
+        type: boolean
+        default: true
+    outputs:
+      det_model_name:
+        description: 'Detection model name'
+        value: ${{ jobs.convert-detection.outputs.det_model_name }}
+      rec_model_name:
+        description: 'Recognition model name'
+        value: ${{ jobs.convert-recognition.outputs.rec_model_name }}
+      det_onnx_file:
+        description: 'Detection ONNX filename'
+        value: ${{ jobs.convert-detection.outputs.det_onnx_file }}
+      rec_onnx_file:
+        description: 'Recognition ONNX filename'
+        value: ${{ jobs.convert-recognition.outputs.rec_onnx_file }}
+  workflow_dispatch:
+    inputs:
+      model_version:
+        description: 'Model version to convert'
+        required: true
+        type: choice
+        default: 'v5_server'
+        options:
+          - v5_server
+          - v5_mobile
+          - v4_server
+          - v4_mobile
+      upload_artifact:
+        description: 'Upload models as artifacts'
+        required: false
+        type: boolean
+        default: true
+  schedule:
+    # Run monthly to check for model updates
+    - cron: '0 0 1 * *'
+  push:
+    paths:
+      - '.github/workflows/convert-models.yml'
+      - 'scripts/convert_to_onnx.sh'
+
+env:
+  PADDLE2ONNX_VERSION: '1.2.0'
+  OPSET_VERSION: '11'
+
+jobs:
+  convert-detection:
+    name: Convert Detection Model
+    runs-on: ubuntu-22.04
+    outputs:
+      det_model_name: ${{ steps.vars.outputs.det_model_name }}
+      det_onnx_file: ${{ steps.vars.outputs.det_onnx_file }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Set model variables
+        id: vars
+        run: |
+          MODEL_VERSION="${{ inputs.model_version || 'v5_server' }}"
+          
+          case "${MODEL_VERSION}" in
+            v5_server)
+              DET_MODEL="PP-OCRv5_server_det"
+              REC_MODEL="PP-OCRv5_server_rec"
+              ;;
+            v5_mobile)
+              DET_MODEL="PP-OCRv5_mobile_det"
+              REC_MODEL="PP-OCRv5_mobile_rec"
+              ;;
+            v4_server)
+              DET_MODEL="PP-OCRv4_server_det"
+              REC_MODEL="PP-OCRv4_server_rec"
+              ;;
+            v4_mobile)
+              DET_MODEL="PP-OCRv4_mobile_det"
+              REC_MODEL="PP-OCRv4_mobile_rec"
+              ;;
+            *)
+              echo "Unknown model version: ${MODEL_VERSION}"
+              exit 1
+              ;;
+          esac
+          
+          echo "det_model_name=${DET_MODEL}" >> $GITHUB_OUTPUT
+          echo "rec_model_name=${REC_MODEL}" >> $GITHUB_OUTPUT
+          echo "det_onnx_file=${DET_MODEL}.onnx" >> $GITHUB_OUTPUT
+          echo "rec_onnx_file=${REC_MODEL}.onnx" >> $GITHUB_OUTPUT
+          echo "model_version=${MODEL_VERSION}" >> $GITHUB_OUTPUT
+          
+          echo "Model version: ${MODEL_VERSION}"
+          echo "Detection model: ${DET_MODEL}"
+          echo "Recognition model: ${REC_MODEL}"
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      
+      - name: Cache Python packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install paddlepaddle==3.0.0 -i https://mirror.baidu.com/pypi/simple
+          pip install paddle2onnx==${PADDLE2ONNX_VERSION}
+          pip install huggingface_hub
+      
+      - name: Create model directories
+        run: |
+          mkdir -p models/paddle
+          mkdir -p models/onnx
+          mkdir -p models/dicts
+      
+      - name: Download detection model
+        id: download_det
+        run: |
+          MODEL_NAME="${{ steps.vars.outputs.det_model_name }}"
+          MODEL_URL="https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0/${MODEL_NAME}_infer.tar"
+          
+          echo "Downloading from: ${MODEL_URL}"
+          
+          cd models/paddle
+          wget -q --show-progress "${MODEL_URL}" -O "${MODEL_NAME}.tar"
+          
+          echo "Extracting model..."
+          tar -xf "${MODEL_NAME}.tar"
+          mv "${MODEL_NAME}_infer" "${MODEL_NAME}"
+          rm "${MODEL_NAME}.tar"
+          
+          echo "Model extracted to: models/paddle/${MODEL_NAME}"
+          
+          # Verify model files
+          if [ -f "${MODEL_NAME}/inference.pdmodel" ] && [ -f "${MODEL_NAME}/inference.pdiparams" ]; then
+            echo "Model files verified"
+          else
+            echo "Error: Model files not found"
+            exit 1
+          fi
+      
+      - name: Convert detection model to ONNX
+        id: convert_det
+        run: |
+          MODEL_NAME="${{ steps.vars.outputs.det_model_name }}"
+          ONNX_FILE="models/onnx/${MODEL_NAME}.onnx"
+          
+          echo "Converting ${MODEL_NAME} to ONNX..."
+          
+          paddle2onnx \
+            --model_dir "models/paddle/${MODEL_NAME}" \
+            --model_filename inference.pdmodel \
+            --params_filename inference.pdiparams \
+            --save_file "${ONNX_FILE}" \
+            --opset_version ${OPSET_VERSION} \
+            --enable_onnx_checker True \
+            --input_shape_dict "x:-1,3,-1,-1"
+          
+          if [ -f "${ONNX_FILE}" ]; then
+            FILE_SIZE=$(du -h "${ONNX_FILE}" | cut -f1)
+            echo "ONNX model created: ${ONNX_FILE} (${FILE_SIZE})"
+            echo "onnx_file=${ONNX_FILE}" >> $GITHUB_OUTPUT
+          else
+            echo "Error: ONNX conversion failed"
+            exit 1
+          fi
+      
+      - name: Verify ONNX model
+        run: |
+          python -c "
+          import onnx
+          model = onnx.load('${{ steps.convert_det.outputs.onnx_file }}')
+          onnx.checker.check_model(model)
+          print(f'ONNX model verified: {len(model.graph.input)} inputs, {len(model.graph.output)} outputs')
+          print(f'Opset version: {model.opset_import[0].version}')
+          "
+      
+      - name: Upload detection model artifact
+        if: ${{ inputs.upload_artifact != 'false' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.vars.outputs.det_model_name }}
+          path: |
+            models/onnx/${{ steps.vars.outputs.det_model_name }}.onnx
+          retention-days: 90
+          compression-level: 6
+
+  convert-recognition:
+    name: Convert Recognition Model
+    runs-on: ubuntu-22.04
+    needs: convert-detection
+    outputs:
+      rec_model_name: ${{ steps.vars.outputs.rec_model_name }}
+      rec_onnx_file: ${{ steps.convert_rec.outputs.onnx_file }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Set model variables
+        id: vars
+        run: |
+          echo "rec_model_name=${{ needs.convert-detection.outputs.rec_model_name }}" >> $GITHUB_OUTPUT
+          echo "rec_onnx_file=${{ needs.convert-detection.outputs.rec_model_name }}.onnx" >> $GITHUB_OUTPUT
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install paddlepaddle==3.0.0 -i https://mirror.baidu.com/pypi/simple
+          pip install paddle2onnx==${PADDLE2ONNX_VERSION}
+      
+      - name: Create model directories
+        run: |
+          mkdir -p models/paddle
+          mkdir -p models/onnx
+      
+      - name: Download recognition model
+        run: |
+          MODEL_NAME="${{ steps.vars.outputs.rec_model_name }}"
+          MODEL_URL="https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0/${MODEL_NAME}_infer.tar"
+          
+          echo "Downloading from: ${MODEL_URL}"
+          
+          cd models/paddle
+          wget -q --show-progress "${MODEL_URL}" -O "${MODEL_NAME}.tar"
+          
+          echo "Extracting model..."
+          tar -xf "${MODEL_NAME}.tar"
+          mv "${MODEL_NAME}_infer" "${MODEL_NAME}"
+          rm "${MODEL_NAME}.tar"
+      
+      - name: Convert recognition model to ONNX
+        id: convert_rec
+        run: |
+          MODEL_NAME="${{ steps.vars.outputs.rec_model_name }}"
+          ONNX_FILE="models/onnx/${MODEL_NAME}.onnx"
+          
+          echo "Converting ${MODEL_NAME} to ONNX..."
+          
+          paddle2onnx \
+            --model_dir "models/paddle/${MODEL_NAME}" \
+            --model_filename inference.pdmodel \
+            --params_filename inference.pdiparams \
+            --save_file "${ONNX_FILE}" \
+            --opset_version ${OPSET_VERSION} \
+            --enable_onnx_checker True \
+            --input_shape_dict "x:-1,3,48,-1"
+          
+          if [ -f "${ONNX_FILE}" ]; then
+            FILE_SIZE=$(du -h "${ONNX_FILE}" | cut -f1)
+            echo "ONNX model created: ${ONNX_FILE} (${FILE_SIZE})"
+            echo "onnx_file=${ONNX_FILE}" >> $GITHUB_OUTPUT
+          else
+            echo "Error: ONNX conversion failed"
+            exit 1
+          fi
+      
+      - name: Verify ONNX model
+        run: |
+          python -c "
+          import onnx
+          model = onnx.load('${{ steps.convert_rec.outputs.onnx_file }}')
+          onnx.checker.check_model(model)
+          print(f'ONNX model verified: {len(model.graph.input)} inputs, {len(model.graph.output)} outputs')
+          "
+      
+      - name: Upload recognition model artifact
+        if: ${{ inputs.upload_artifact != 'false' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.vars.outputs.rec_model_name }}
+          path: |
+            models/onnx/${{ steps.vars.outputs.rec_model_name }}.onnx
+          retention-days: 90
+          compression-level: 6
+
+  download-dictionaries:
+    name: Download Dictionaries
+    runs-on: ubuntu-22.04
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Create dictionaries directory
+        run: mkdir -p models/dicts
+      
+      - name: Download Chinese dictionary
+        run: |
+          wget -q https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/release/2.7/ppocr/utils/ppocr_keys_v1.txt \
+            -O models/dicts/ppocr_keys_v1.txt
+          echo "Chinese dictionary: $(wc -l < models/dicts/ppocr_keys_v1.txt) characters"
+      
+      - name: Download English dictionary
+        run: |
+          wget -q https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/release/2.7/ppocr/utils/ic15_dict.txt \
+            -O models/dicts/ic15_dict.txt
+          echo "English dictionary: $(wc -l < models/dicts/ic15_dict.txt) characters"
+      
+      - name: Download multilingual dictionary (V5)
+        run: |
+          wget -q https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/release/3.0/ppocr/utils/ppocr_keys_v1.txt \
+            -O models/dicts/ppocr_keys_v5.txt || true
+      
+      - name: Upload dictionaries artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dictionaries
+          path: |
+            models/dicts/*.txt
+          retention-days: 90
+
+  summary:
+    name: Conversion Summary
+    runs-on: ubuntu-22.04
+    needs: [convert-detection, convert-recognition, download-dictionaries]
+    
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      
+      - name: Generate summary
+        run: |
+          echo "## Model Conversion Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Model Version:** ${{ inputs.model_version || 'v5_server' }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Converted Models" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "| Model | Format | Artifact |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|----------|" >> $GITHUB_STEP_SUMMARY
+          echo "| ${{ needs.convert-detection.outputs.det_model_name }} | ONNX | \`${{ needs.convert-detection.outputs.det_model_name }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| ${{ needs.convert-recognition.outputs.rec_model_name }} | ONNX | \`${{ needs.convert-recognition.outputs.rec_model_name }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Dictionaries | TXT | \`dictionaries\` |" >> $GITHUB_STEP_SUMMARY
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Artifacts are available for download in this workflow run." >> $GITHUB_STEP_SUMMARY
+      
+      - name: List artifact contents
+        run: |
+          echo "=== Artifacts Directory Structure ==="
+          find artifacts -type f -name "*.onnx" -o -name "*.txt" | sort
+          
+          echo ""
+          echo "=== File Sizes ==="
+          find artifacts -type f -name "*.onnx" -exec du -h {} \;
