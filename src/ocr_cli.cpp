@@ -33,6 +33,7 @@ struct CommandLineOptions {
     float det_db_unclip_ratio = 1.5f;
     int rec_batch_size = 6;
     bool verbose = false;
+    bool print_version = false;
 };
 
 bool ParseCommandLine(int argc, char* argv[], CommandLineOptions& opts) {
@@ -54,6 +55,7 @@ bool ParseCommandLine(int argc, char* argv[], CommandLineOptions& opts) {
             ("det-unclip-ratio", "Detection unclip ratio", cxxopts::value<float>()->default_value("1.5"))
             ("rec-batch-size", "Recognition batch size", cxxopts::value<int>()->default_value("6"))
             ("v,verbose", "Verbose output", cxxopts::value<bool>()->default_value("false"))
+            ("version", "Print version information")
             ("h,help", "Print help");
         
         auto result = options.parse(argc, argv);
@@ -61,6 +63,11 @@ bool ParseCommandLine(int argc, char* argv[], CommandLineOptions& opts) {
         if (result.count("help")) {
             std::cout << options.help() << std::endl;
             return false;
+        }
+
+        if (result.count("version")) {
+            opts.print_version = true;
+            return true;
         }
         
         // Required arguments
@@ -104,7 +111,13 @@ int main(int argc, char* argv[]) {
     if (!ParseCommandLine(argc, argv, opts)) {
         return 1;
     }
-    
+
+    if (opts.print_version) {
+        std::cout << "PaddleOCR ONNX Runtime " << PROJECT_VERSION
+                  << " (git: " << GIT_COMMIT_HASH << ")" << std::endl;
+        return 0;
+    }
+
     // Print header
     std::cout << "=== PaddleOCR ONNX Runtime ===" << std::endl;
     std::cout << "Image: " << opts.image_path << std::endl;

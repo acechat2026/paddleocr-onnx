@@ -197,6 +197,20 @@ message(STATUS "  Include: ${OpenCV_INCLUDE_DIRS}")
 message(STATUS "  Libraries: ${OpenCV_LIBS}")
 
 # ============================================
+# Version / Git Info
+# ============================================
+execute_process(
+    COMMAND git rev-parse --short HEAD
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    OUTPUT_VARIABLE GIT_COMMIT_HASH
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET
+)
+if(NOT GIT_COMMIT_HASH)
+    set(GIT_COMMIT_HASH "unknown")
+endif()
+
+# ============================================
 # Compiler-specific Options
 # ============================================
 if(MSVC)
@@ -205,7 +219,7 @@ if(MSVC)
     add_compile_options(/MP)           # Multi-processor compilation
     add_compile_options(/utf-8)        # UTF-8 source encoding
     add_compile_options(/bigobj)       # Support large object files
-    
+
     # Release optimization flags
     set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /O2 /Ob2 /Oi /Ot")
 else()
@@ -213,13 +227,13 @@ else()
     add_compile_options(-Wall -Wextra)
     add_compile_options(-Wno-unused-parameter)
     add_compile_options(-Wno-sign-compare)
-    
+
     # Release optimization flags
     set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -march=native -mtune=native")
-    
+
     # Debug flags
     set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g -O0")
-    
+
     # Linker flags for Linux
     if(PLATFORM_LINUX)
         set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -pthread")
@@ -292,6 +306,11 @@ target_link_libraries(ocr_cli
     ${OpenCV_LIBS}
 )
 
+target_compile_definitions(ocr_cli PRIVATE
+    PROJECT_VERSION="${PROJECT_VERSION}"
+    GIT_COMMIT_HASH="${GIT_COMMIT_HASH}"
+)
+
 # Windows-specific: Copy DLLs to output directory
 if(WIN32 AND ONNXRUNTIME_DLL)
     add_custom_command(TARGET ocr_cli POST_BUILD
@@ -338,6 +357,11 @@ if(BUILD_HTTP_SERVER)
         ${ONNXRUNTIME_LIBRARY}
         ${OpenCV_LIBS}
         Threads::Threads
+    )
+
+    target_compile_definitions(ocr_server PRIVATE
+        PROJECT_VERSION="${PROJECT_VERSION}"
+        GIT_COMMIT_HASH="${GIT_COMMIT_HASH}"
     )
     
     # Platform-specific libraries for cpp-httplib
@@ -393,6 +417,11 @@ if(BUILD_BENCHMARK)
     target_link_libraries(ocr_benchmark
         ${ONNXRUNTIME_LIBRARY}
         ${OpenCV_LIBS}
+    )
+
+    target_compile_definitions(ocr_benchmark PRIVATE
+        PROJECT_VERSION="${PROJECT_VERSION}"
+        GIT_COMMIT_HASH="${GIT_COMMIT_HASH}"
     )
 endif()
 

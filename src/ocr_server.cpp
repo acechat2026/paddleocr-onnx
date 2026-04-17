@@ -42,6 +42,7 @@ struct ServerOptions {
     int rec_batch_size = 6;
     int max_queue_size = 100;
     bool verbose = false;
+    bool print_version = false;
 };
 
 bool ParseCommandLine(int argc, char* argv[], ServerOptions& opts) {
@@ -62,6 +63,7 @@ bool ParseCommandLine(int argc, char* argv[], ServerOptions& opts) {
             ("rec-batch-size", "Recognition batch size", cxxopts::value<int>()->default_value("6"))
             ("max-queue", "Maximum request queue size", cxxopts::value<int>()->default_value("100"))
             ("v,verbose", "Verbose output", cxxopts::value<bool>()->default_value("false"))
+            ("version", "Print version information")
             ("h,help", "Print help");
         
         auto result = options.parse(argc, argv);
@@ -69,6 +71,11 @@ bool ParseCommandLine(int argc, char* argv[], ServerOptions& opts) {
         if (result.count("help")) {
             std::cout << options.help() << std::endl;
             return false;
+        }
+
+        if (result.count("version")) {
+            opts.print_version = true;
+            return true;
         }
         
         // Required arguments
@@ -110,14 +117,20 @@ int main(int argc, char* argv[]) {
     if (!ParseCommandLine(argc, argv, opts)) {
         return 1;
     }
-    
+
+    if (opts.print_version) {
+        std::cout << "PaddleOCR ONNX HTTP Server " << PROJECT_VERSION
+                  << " (git: " << GIT_COMMIT_HASH << ")" << std::endl;
+        return 0;
+    }
+
     // Setup signal handlers
     std::signal(SIGINT, SignalHandler);
     std::signal(SIGTERM, SignalHandler);
-    
+
     // Print header
     std::cout << "=== PaddleOCR ONNX HTTP Server ===" << std::endl;
-    std::cout << "Version: 1.0.0" << std::endl;
+    std::cout << "Version: " << PROJECT_VERSION << " (git: " << GIT_COMMIT_HASH << ")" << std::endl;
     std::cout << "Host: " << opts.host << std::endl;
     std::cout << "Port: " << opts.port << std::endl;
     std::cout << "Detection Model: " << opts.det_model_path << std::endl;
